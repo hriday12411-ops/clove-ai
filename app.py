@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import time
 from pathlib import Path
 import streamlit as st
 from groq import Groq
@@ -13,14 +14,14 @@ BUILTIN_GROQ_KEY = "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"
 
 # Page Initialization (Must be first Streamlit command)
 st.set_page_config(
-    page_title="CLOVER STUDIO // AI FOUNDRY",
+    page_title="CLOVER STUDIO // NEURAL FOUNDRY",
     page_icon="🍀",
     layout="centered",
     initial_sidebar_state="collapsed"
 )
 
 # ==============================================================================
-# 💾 2. CORE STORAGE & MODEL RESOLUTION (INITIALIZED EARLY)
+# 💾 2. CORE STORAGE & MODEL AUTO-DETECTION
 # ==============================================================================
 BASE = Path(__file__).parent
 HISTORY_DIR = BASE / "students"
@@ -65,11 +66,11 @@ def get_groq_model(_client):
         return "llama-3.3-70b-versatile"
 
 # ==============================================================================
-# ⚙️ 3. SIDEBAR CONFIGURATION (PERSONAS & THEMES)
+# ⚙️ 3. SIDEBAR: AGENT STUDIO & COUNTDOWN ENGINE
 # ==============================================================================
 with st.sidebar:
     st.markdown("### 🛠️ **AGENT STUDIO**")
-    st.caption("Dynamic AI Customization Engine")
+    st.caption("Autonomous AI Customization Engine")
 
     persona_mode = st.selectbox(
         "Select AI Archetype:",
@@ -88,13 +89,13 @@ with st.sidebar:
         ai_tagline = "Your chill senior schoolmate and anti-burnout study buddy."
         custom_instructions = "You are Clover, a casual, friendly, empathetic senior student. Use warm phrasing, validate emotions first, and make realistic 3-day recovery study plans."
         theme = {
-            "primary": "#10b981",          # Emerald
+            "primary": "#10b981",          # Emerald Green
             "accent": "#34d399",
             "ambient1": "rgba(16, 185, 129, 0.22)",
             "ambient2": "rgba(6, 182, 212, 0.14)",
             "assistant_bg": "rgba(6, 78, 59, 0.22)",
             "title_grad": "linear-gradient(135deg, #ffffff 10%, #6ee7b7 55%, #06b6d4 100%)",
-            "glow_rgba": "rgba(16, 185, 129, 0.4)"
+            "glow_rgba": "rgba(16, 185, 129, 0.45)"
         }
     elif "Titan" in persona_mode:
         ai_name = "Titan"
@@ -108,7 +109,7 @@ with st.sidebar:
             "ambient2": "rgba(249, 115, 22, 0.16)",
             "assistant_bg": "rgba(127, 29, 29, 0.25)",
             "title_grad": "linear-gradient(135deg, #ffffff 10%, #fca5a5 50%, #f97316 100%)",
-            "glow_rgba": "rgba(239, 68, 68, 0.4)"
+            "glow_rgba": "rgba(239, 68, 68, 0.45)"
         }
     elif "Luna" in persona_mode:
         ai_name = "Luna"
@@ -116,7 +117,7 @@ with st.sidebar:
         ai_tagline = "Calming mindfulness guide for acute test anxiety."
         custom_instructions = "You are Luna, a gentle, soothing, mindfulness-focused study companion. Help students take deep breaths, un-clench their jaws, ground their focus, and approach topics with zero panic."
         theme = {
-            "primary": "#3b82f6",          # Navy / Sapphire
+            "primary": "#3b82f6",          # Sapphire Navy
             "accent": "#60a5fa",
             "ambient1": "rgba(37, 99, 235, 0.26)",
             "ambient2": "rgba(30, 58, 138, 0.40)",
@@ -141,14 +142,54 @@ with st.sidebar:
             "ambient2": "rgba(236, 72, 153, 0.16)",
             "assistant_bg": "rgba(88, 28, 135, 0.25)",
             "title_grad": "linear-gradient(135deg, #ffffff 10%, #d8b4fe 50%, #ec4899 100%)",
-            "glow_rgba": "rgba(168, 85, 247, 0.4)"
+            "glow_rgba": "rgba(168, 85, 247, 0.45)"
         }
 
     st.divider()
     st.markdown("#### 👤 **Student Workspace**")
     student_name = st.text_input("Active Profile ID:", value="Hriday Bedi")
+
+    # Exam Countdown Tracker with Safe Fallback
+    st.markdown("##### 🎯 **Exam Countdown Tracker**")
+    col_a, col_b = st.columns(2)
+    with col_a:
+        raw_target = st.text_input("Target Exam:", value="Chemistry")
+        safe_exam_target = re.sub(r'[^\w\s-]', '', raw_target).strip() or "Exams"
+    with col_b:
+        exam_days = st.number_input("Days Left:", min_value=1, max_value=365, value=3)
+
     raw_slug = f"{student_name.strip().lower()}_{ai_name.lower()}"
     clean_name = re.sub(r'[^a-zA-Z0-9_]', '_', raw_slug)
+
+    # Session Utilities & Export
+    st.divider()
+    st.markdown("#### 📥 **Session Utilities**")
+    
+    # Initialize session history
+    if "messages" not in st.session_state or st.session_state.get("current_profile") != clean_name:
+        st.session_state.current_profile = clean_name
+        st.session_state.messages = load_history(clean_name)
+
+    if st.session_state.messages:
+        export_text = f"=====================================================\n"
+        export_text += f"CLOVER OS // EXAM STRATEGY & STUDY ROADMAP\n"
+        export_text += f"Student: {student_name}\n"
+        export_text += f"Target Subject: {safe_exam_target} (Deadline: {exam_days} Days Remaining)\n"
+        export_text += f"Consultant Engine: {ai_name} Core\n"
+        export_text += f"=====================================================\n\n"
+        for m in st.session_state.messages:
+            sender = student_name if m.get("role") == "user" else ai_name
+            export_text += f"[{sender}]:\n{m.get('content', '')}\n\n"
+
+        st.download_button(
+            label="📥 Download Study Plan (.txt)",
+            data=export_text,
+            file_name=f"{clean_name}_study_roadmap.txt",
+            mime="text/plain",
+            use_container_width=True
+        )
+    else:
+        st.caption("💬 Chat with the AI to generate an exportable study roadmap.")
 
     if st.button("🗑️ Reset Chat History", use_container_width=True):
         save_history(clean_name, [])
@@ -157,17 +198,9 @@ with st.sidebar:
 
     st.divider()
     sidebar_key = st.text_input("Groq API Key (Override):", type="password", value="", placeholder="gsk_...")
-    
-    st.markdown("""
-    <div style="font-size: 11px; color: #94a3b8; font-family: 'JetBrains Mono', monospace;">
-    ENGINE: Groq LPU™ Silicon<br>
-    PERSISTENCE: Isolated JSON<br>
-    GUARDRAILS: Anti-Cheat Active
-    </div>
-    """, unsafe_allow_html=True)
 
 # ==============================================================================
-# 🎨 4. DYNAMIC THEME INJECTION
+# 🎨 4. DYNAMIC THEME & MOVING SCANNER LIGHT INJECTION
 # ==============================================================================
 raw_css = """
 <style>
@@ -192,8 +225,10 @@ raw_css = """
         color: #f1f5f9;
     }
 
-    /* Top Telemetry HUD Strip */
+    /* Top Telemetry HUD Strip with MOVING SCANNER LIGHT */
     .hud-bar {
+        position: relative;
+        overflow: hidden;
         display: flex;
         justify-content: space-between;
         align-items: center;
@@ -207,10 +242,25 @@ raw_css = """
         color: #94a3b8;
         box-shadow: 0 0 16px __AMBIENT1__;
     }
+    /* Moving Scanner Beam Effect */
+    .hud-bar::after {
+        content: '';
+        position: absolute;
+        top: 0; left: -100%; width: 40%; height: 100%;
+        background: linear-gradient(90deg, transparent, __PRIMARY__, transparent);
+        opacity: 0.45;
+        animation: laserScan 3.5s infinite linear;
+    }
+    @keyframes laserScan {
+        0% { left: -100%; }
+        100% { left: 200%; }
+    }
+
     .hud-item {
         display: flex;
         align-items: center;
         gap: 6px;
+        z-index: 2;
     }
     .hud-accent {
         color: __ACCENT__;
@@ -232,7 +282,7 @@ raw_css = """
         100% { transform: scale(0.95); box-shadow: 0 0 0 0 transparent; }
     }
 
-    /* Hero Holographic Container */
+    /* Hero Holographic Container with BREATHING NEON PULSE */
     .hero-container {
         background: rgba(10, 18, 25, 0.75);
         backdrop-filter: blur(20px);
@@ -242,8 +292,13 @@ raw_css = """
         padding: 26px 20px;
         text-align: center;
         margin-bottom: 22px;
-        box-shadow: 0 0 35px -10px __AMBIENT1__;
+        animation: neonGlow 4s infinite ease-in-out;
     }
+    @keyframes neonGlow {
+        0%, 100% { box-shadow: 0 0 25px -8px __GLOW__; }
+        50% { box-shadow: 0 0 45px 2px __GLOW__; }
+    }
+
     .hero-title {
         font-size: clamp(24px, 6vw, 36px);
         font-weight: 900;
@@ -319,7 +374,24 @@ raw_css = """
         background: rgba(15, 23, 42, 0.4) !important;
     }
 
-    /* Glowing Input */
+    /* Hardware Telemetry Benchmark Chip */
+    .telemetry-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(15, 23, 42, 0.9);
+        border: 1px solid __PRIMARY__;
+        padding: 3px 10px;
+        border-radius: 6px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 10px;
+        font-weight: 600;
+        color: __ACCENT__;
+        margin-top: 8px;
+        box-shadow: 0 0 10px __AMBIENT1__;
+    }
+
+    /* Glowing Input Bar */
     .stChatInputContainer {
         border-radius: 16px !important;
         border: 1px solid __PRIMARY__ !important;
@@ -349,9 +421,13 @@ styled_css = (
 )
 st.markdown(styled_css, unsafe_allow_html=True)
 
-# Master System Prompt with Permanent Guardrails
+# Master System Prompt with Countdown Context & Permanent Guardrails
 SYSTEM_PROMPT = f"""You are {ai_name}, an AI student academic companion.
 {custom_instructions}
+
+SITUATIONAL AWARENESS:
+The student is actively preparing for an upcoming '{safe_exam_target}' exam in exactly {exam_days} days.
+Tailor all study timelines, triage steps, active recall recommendations, and urgency strictly to this {exam_days}-day window!
 
 MANDATORY PEDAGOGICAL GUARDRAILS (NEVER VIOLATE):
 1. Never Do The Work For Them: Do not write essays, complete assignments, or solve test questions directly. Guide their thought process, give outlines, and explain concepts.
@@ -361,28 +437,23 @@ MANDATORY PEDAGOGICAL GUARDRAILS (NEVER VIOLATE):
 
 ACTIVE_API_KEY = sidebar_key.strip() or BUILTIN_GROQ_KEY.strip() or os.environ.get("GROQ_API_KEY", "").strip()
 
-# Initialize session history for this specific student + agent pair
-if "messages" not in st.session_state or st.session_state.get("current_profile") != clean_name:
-    st.session_state.current_profile = clean_name
-    st.session_state.messages = load_history(clean_name)
-
 safe_ai_name = ai_name.replace("<", "").replace(">", "")
 safe_ai_tagline = ai_tagline.replace("<", "").replace(">", "")
 
 # ==============================================================================
-# 🛰️ 5. TELEMETRY HUD BAR
+# 🛰️ 5. TELEMETRY HUD BAR (WITH SCANNER LIGHT)
 # ==============================================================================
 st.markdown(f"""
 <div class="hud-bar">
     <div class="hud-item">
         <span class="pulse-dot"></span>
-        <span>AGENT: <span class="hud-accent">{safe_ai_name.upper()}</span></span>
+        <span>CORE: <span class="hud-accent">{safe_ai_name.upper()}</span></span>
     </div>
     <div class="hud-item">
-        <span>CORE: <span class="hud-accent">GROQ LPU™</span></span>
+        <span>EXAM: <span class="hud-accent">{safe_exam_target.upper()} ({exam_days}D)</span></span>
     </div>
     <div class="hud-item">
-        <span>LATENCY: <span class="hud-accent">&lt;0.3s</span></span>
+        <span>INFERENCE: <span class="hud-accent">GROQ LPU™</span></span>
     </div>
 </div>
 """, unsafe_allow_html=True)
@@ -399,7 +470,7 @@ if len(st.session_state.messages) == 0:
         <div class="hero-subtitle">{safe_ai_tagline}</div>
         <div class="metric-row">
             <span class="metric-chip">⚡ LPU ACCELERATED</span>
-            <span class="metric-chip">🧠 {safe_ai_name.upper()} PERSONA ACTIVE</span>
+            <span class="metric-chip">🎯 {safe_exam_target.upper()} TARGET: {exam_days} DAYS</span>
             <span class="metric-chip">🛡️ ANTI-CHEAT GUARDRAILS</span>
         </div>
     </div>
@@ -409,8 +480,8 @@ if len(st.session_state.messages) == 0:
     
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("🧪 3-Day Emergency Exam Triage", use_container_width=True):
-            starter_prompt = "I have a tough exam in 3 days and feel unprepared. Walk me through an emergency triage study plan."
+        if st.button(f"🧪 Emergency {safe_exam_target} Triage", use_container_width=True):
+            starter_prompt = f"I have my {safe_exam_target} exam in {exam_days} days and feel unprepared. Walk me through an emergency triage study plan."
         if st.button("🧠 Deep Focus Pomodoro Setup", use_container_width=True):
             starter_prompt = "Design a high-retention 3-hour study block routine using Pomodoro that avoids mental fatigue."
     with col2:
@@ -420,18 +491,20 @@ if len(st.session_state.messages) == 0:
             starter_prompt = "What quick snacks and hydration strategy will give me sustained focus without brain fog or sugar crashes?"
 
 # ==============================================================================
-# 💬 7. CHAT HISTORY DISPLAY
+# 💬 7. CHAT HISTORY DISPLAY (WITH BENCHMARK CHIPS)
 # ==============================================================================
 for msg in st.session_state.messages:
     role = msg.get("role")
     avatar = ai_avatar if role == "assistant" else "👤"
     with st.chat_message(role, avatar=avatar):
         st.markdown(msg.get("content", ""))
+        if msg.get("telemetry"):
+            st.markdown(f'<div class="telemetry-chip">{msg["telemetry"]}</div>', unsafe_allow_html=True)
 
 # ==============================================================================
-# ⚡ 8. CHAT INPUT & STREAMING PIPELINE
+# ⚡ 8. CHAT INPUT & LIVE STREAMING PIPELINE (WITH BENCHMARK TIMER)
 # ==============================================================================
-chat_input = st.chat_input(f"Message {safe_ai_name}...")
+chat_input = st.chat_input(f"Message {safe_ai_name} (Target: {safe_exam_target} in {exam_days} days)...")
 user_prompt = chat_input or starter_prompt
 
 if user_prompt:
@@ -450,6 +523,8 @@ if user_prompt:
                 payload = [{"role": "system", "content": SYSTEM_PROMPT}]
                 payload.extend(st.session_state.messages[-10:])
 
+                start_time = time.time()
+
                 stream = client.chat.completions.create(
                     model=active_model,
                     messages=payload,
@@ -466,8 +541,20 @@ if user_prompt:
                                     yield content
 
                 response_text = st.write_stream(stream_chunks())
+                
+                # Hardware benchmark telemetry
+                elapsed = max(time.time() - start_time, 0.05)
+                est_tokens = max(int(len(response_text.split()) * 1.33), 1)
+                tps = int(est_tokens / elapsed)
+                telemetry_str = f"⚡ {elapsed:.2f}s LATENCY &bull; ~{tps} TOK/S &bull; GROQ LPU™ HARDWARE"
+                
+                st.markdown(f'<div class="telemetry-chip">{telemetry_str}</div>', unsafe_allow_html=True)
 
-                st.session_state.messages.append({"role": "assistant", "content": response_text})
+                st.session_state.messages.append({
+                    "role": "assistant", 
+                    "content": response_text,
+                    "telemetry": telemetry_str
+                })
                 save_history(clean_name, st.session_state.messages)
 
                 if len(st.session_state.messages) == 2:
