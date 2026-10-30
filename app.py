@@ -2,8 +2,11 @@ import json
 import os
 import re
 import time
+import urllib.request
+import urllib.parse
 from pathlib import Path
 import streamlit as st
+import streamlit.components.v1 as components
 from groq import Groq
 
 # ==============================================================================
@@ -12,7 +15,6 @@ from groq import Groq
 # Paste your working Groq API key (starts with gsk_) between these quotes:
 BUILTIN_GROQ_KEY = "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"
 
-# Page Initialization (Must be first Streamlit command)
 st.set_page_config(
     page_title="CLOVER STUDIO // NEURAL FOUNDRY",
     page_icon="🍀",
@@ -20,8 +22,42 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+# Smooth Auto-Scroll Helper
+def auto_scroll():
+    components.html(
+        """
+        <script>
+            setTimeout(function() {
+                const main = window.parent.document.querySelector('section.main');
+                if (main) {
+                    main.scrollTo({ top: main.scrollHeight, behavior: 'smooth' });
+                }
+            }, 100);
+        </script>
+        """,
+        height=0,
+    )
+
+# Real-Time Zero-Key Weather Engine
+def get_live_weather(query_text):
+    weather_keywords = ["weather", "temperature", "rain", "forecast", "climate", "hot outside", "cold outside", "umbrella", "sunny"]
+    if not any(k in query_text.lower() for k in weather_keywords):
+        return None
+    try:
+        city = "Delhi"
+        match = re.search(r'\bin\s+([A-Za-z]+)', query_text, re.IGNORECASE)
+        if match:
+            city = match.group(1).strip()
+        url = f"https://wttr.in/{urllib.parse.quote(city)}?format=%C+%t+(Humidity:+%h,+Wind:+%w)"
+        req = urllib.request.Request(url, headers={"User-Agent": "curl/7.68.0"})
+        with urllib.request.urlopen(req, timeout=1.5) as resp:
+            data = resp.read().decode("utf-8").strip()
+            return f"LIVE SATELLITE WEATHER FOR {city.upper()}: {data}"
+    except Exception:
+        return None
+
 # ==============================================================================
-# 💾 2. CORE STORAGE & MODEL RESOLUTION
+# 💾 2. STORAGE & MODEL AUTO-DETECTION
 # ==============================================================================
 BASE = Path(__file__).parent
 HISTORY_DIR = BASE / "students"
@@ -66,13 +102,13 @@ def get_groq_model(_client):
         return "llama-3.3-70b-versatile"
 
 # ==============================================================================
-# ⚙️ 3. SIDEBAR: CYBER DASHBOARD & AGENT STUDIO
+# ⚙️ 3. SIDEBAR: CYBER DASHBOARD, AUDIO & FILE ATTACHMENTS
 # ==============================================================================
 with st.sidebar:
     st.markdown("""
     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
         <span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700; color: #94a3b8; letter-spacing: 1px;">// CONTROL MATRIX</span>
-        <span style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #10b981; font-weight: 700;">● DIAGNOSTIC: NORMAL</span>
+        <span style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #10b981; font-weight: 700;">● SENSORS: ONLINE</span>
     </div>
     """, unsafe_allow_html=True)
 
@@ -86,18 +122,14 @@ with st.sidebar:
         ]
     )
 
-    # Dynamic Persona & Theme Mapping
     if "Clover" in persona_mode:
         ai_name = "Clover"
         ai_avatar = "🍀"
         ai_tagline = "Chill senior schoolmate and practical study buddy."
         custom_instructions = "You are Clover, a casual, smart, and friendly senior student. Answer questions directly, casually, and with simple analogies. Never sound like a corporate robot."
         theme = {
-            "primary": "#10b981",
-            "accent": "#34d399",
-            "ambient1": "rgba(16, 185, 129, 0.22)",
-            "ambient2": "rgba(6, 182, 212, 0.14)",
-            "assistant_bg": "rgba(6, 78, 59, 0.22)",
+            "primary": "#10b981", "accent": "#34d399", "ambient1": "rgba(16, 185, 129, 0.22)",
+            "ambient2": "rgba(6, 182, 212, 0.14)", "assistant_bg": "rgba(6, 78, 59, 0.22)",
             "title_grad": "linear-gradient(135deg, #ffffff 10%, #6ee7b7 55%, #06b6d4 100%)",
             "glow_rgba": "rgba(16, 185, 129, 0.45)"
         }
@@ -107,11 +139,8 @@ with st.sidebar:
         ai_tagline = "High-accountability, zero-excuses exam drill coach."
         custom_instructions = "You are Titan, an intense, direct academic coach. Push back against procrastination, demand sharp focus, but answer questions directly and concisely."
         theme = {
-            "primary": "#ef4444",
-            "accent": "#f87171",
-            "ambient1": "rgba(239, 68, 68, 0.25)",
-            "ambient2": "rgba(249, 115, 22, 0.16)",
-            "assistant_bg": "rgba(127, 29, 29, 0.25)",
+            "primary": "#ef4444", "accent": "#f87171", "ambient1": "rgba(239, 68, 68, 0.25)",
+            "ambient2": "rgba(249, 115, 22, 0.16)", "assistant_bg": "rgba(127, 29, 29, 0.25)",
             "title_grad": "linear-gradient(135deg, #ffffff 10%, #fca5a5 50%, #f97316 100%)",
             "glow_rgba": "rgba(239, 68, 68, 0.45)"
         }
@@ -121,11 +150,8 @@ with st.sidebar:
         ai_tagline = "Calming mindfulness guide for test anxiety."
         custom_instructions = "You are Luna, a gentle, soothing study companion. Help students stay grounded and answer their questions calmly without inducing any panic."
         theme = {
-            "primary": "#3b82f6",
-            "accent": "#60a5fa",
-            "ambient1": "rgba(37, 99, 235, 0.26)",
-            "ambient2": "rgba(30, 58, 138, 0.40)",
-            "assistant_bg": "rgba(30, 58, 138, 0.28)",
+            "primary": "#3b82f6", "accent": "#60a5fa", "ambient1": "rgba(37, 99, 235, 0.26)",
+            "ambient2": "rgba(30, 58, 138, 0.40)", "assistant_bg": "rgba(30, 58, 138, 0.28)",
             "title_grad": "linear-gradient(135deg, #ffffff 10%, #93c5fd 50%, #3b82f6 100%)",
             "glow_rgba": "rgba(59, 130, 246, 0.45)"
         }
@@ -140,21 +166,18 @@ with st.sidebar:
             value="You are Athena, a sharp intellectual mentor who explains concepts clearly using logical reasoning."
         )
         theme = {
-            "primary": "#a855f7",
-            "accent": "#c084fc",
-            "ambient1": "rgba(168, 85, 247, 0.25)",
-            "ambient2": "rgba(236, 72, 153, 0.16)",
-            "assistant_bg": "rgba(88, 28, 135, 0.25)",
+            "primary": "#a855f7", "accent": "#c084fc", "ambient1": "rgba(168, 85, 247, 0.25)",
+            "ambient2": "rgba(236, 72, 153, 0.16)", "assistant_bg": "rgba(88, 28, 135, 0.25)",
             "title_grad": "linear-gradient(135deg, #ffffff 10%, #d8b4fe 50%, #ec4899 100%)",
             "glow_rgba": "rgba(168, 85, 247, 0.45)"
         }
 
     st.divider()
 
-    # Sleek Cyber Profile Card
+    # Sleek Student Profile Card
     st.markdown(f"""
     <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px; padding: 12px; margin-bottom: 12px;">
-        <div style="font-size: 10px; font-family: 'JetBrains Mono', monospace; color: #94a3b8; text-transform: uppercase;">ACTIVE STUDENT PROFILE</div>
+        <div style="font-size: 10px; font-family: 'JetBrains Mono', monospace; color: #94a3b8;">STUDENT IDENTITY</div>
         <div style="font-size: 14px; font-weight: 700; color: #f8fafc; margin-top: 2px;">Hriday Bedi</div>
         <div style="font-size: 11px; color: {theme['accent']}; font-family: 'JetBrains Mono', monospace; margin-top: 4px;">● PROFILE AUTHENTICATED</div>
     </div>
@@ -165,7 +188,7 @@ with st.sidebar:
     clean_name = re.sub(r'[^a-zA-Z0-9_]', '_', raw_slug)
 
     # Optional Exam Countdown Toggle
-    enable_exam_context = st.checkbox("🎯 Set Active Exam Context", value=False)
+    enable_exam_context = st.checkbox("🎯 Set Active Exam Deadline", value=False)
     if enable_exam_context:
         col_a, col_b = st.columns(2)
         with col_a:
@@ -182,31 +205,38 @@ with st.sidebar:
         st.session_state.current_profile = clean_name
         st.session_state.messages = load_history(clean_name)
 
+    # BUG FIXED: Using .getvalue() so memory pointer doesn't clear the file on turn 2
     st.divider()
+    st.markdown("#### 📁 **Attach Notes / Docs**")
+    uploaded_file = st.file_uploader("Upload Notes (.txt, .md, .py):", type=["txt", "md", "py", "json"])
+    file_context_str = ""
+    if uploaded_file is not None:
+        try:
+            file_context_str = uploaded_file.getvalue().decode("utf-8", errors="ignore")[:3000]
+            st.success(f"Loaded: `{uploaded_file.name}` ({len(file_context_str.split())} words)")
+        except Exception:
+            st.error("Could not parse file.")
 
-    # Hardware Telemetry Matrix
+    # Hardware Telemetry Specs
+    st.divider()
     st.markdown(f"""
-    <div style="background: rgba(10, 15, 22, 0.6); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 12px; padding: 12px; margin-bottom: 14px; font-family: 'JetBrains Mono', monospace; font-size: 10.5px; line-height: 1.8; color: #94a3b8;">
+    <div style="background: rgba(10, 15, 22, 0.6); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 12px; padding: 12px; margin-bottom: 14px; font-family: 'JetBrains Mono', monospace; font-size: 10px; line-height: 1.8; color: #94a3b8;">
         <div>INFERENCE: <span style="color: {theme['accent']}; font-weight: 700;">GROQ LPU™ SILICON</span></div>
-        <div>MODEL CORE: <span style="color: #f1f5f9;">LLAMA-3.3 70B</span></div>
-        <div>CONTEXT: <span style="color: #f1f5f9;">10-TURN SLIDING WINDOW</span></div>
-        <div>GUARDRAILS: <span style="color: {theme['primary']}; font-weight: 700;">PEDAGOGICAL ACTIVE</span></div>
+        <div>WHISPER CORE: <span style="color: #f1f5f9;">v3 LARGE AUDIO</span></div>
+        <div>WEATHER HOOK: <span style="color: #f1f5f9;">LIVE SATELLITE</span></div>
+        <div>GUARDRAILS: <span style="color: {theme['primary']}; font-weight: 700;">ANTI-CHEAT ACTIVE</span></div>
     </div>
     """, unsafe_allow_html=True)
 
-    # Session Utilities & Export
+    # Session Export & Reset
     if st.session_state.messages:
-        export_text = f"=====================================================\n"
-        export_text += f"CLOVER OS // STUDY ROADMAP\n"
-        export_text += f"Student: {student_name}\n"
-        export_text += f"Agent: {ai_name} Core\n"
-        export_text += f"=====================================================\n\n"
+        export_text = f"CLOVER OS // STUDY ROADMAP\nStudent: {student_name}\nAgent: {ai_name}\n" + "="*40 + "\n\n"
         for m in st.session_state.messages:
             sender = student_name if m.get("role") == "user" else ai_name
             export_text += f"[{sender}]:\n{m.get('content', '')}\n\n"
 
         st.download_button(
-            label="📥 Export Session Roadmap (.txt)",
+            label="📥 Export Session (.txt)",
             data=export_text,
             file_name=f"{clean_name}_study_roadmap.txt",
             mime="text/plain",
@@ -228,12 +258,8 @@ raw_css = """
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap');
 
-    html, body, [class*="css"] {
-        font-family: 'Plus Jakarta Sans', sans-serif;
-    }
-    code, pre {
-        font-family: 'JetBrains Mono', monospace !important;
-    }
+    html, body, [class*="css"] { font-family: 'Plus Jakarta Sans', sans-serif; }
+    code, pre { font-family: 'JetBrains Mono', monospace !important; }
 
     .stApp {
         background-color: #030708 !important;
@@ -247,160 +273,70 @@ raw_css = """
     }
 
     .hud-bar {
-        position: relative;
-        overflow: hidden;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        background: rgba(15, 23, 42, 0.7);
-        border: 1px solid __PRIMARY__;
-        border-radius: 10px;
-        padding: 5px 14px;
-        margin-bottom: 14px;
-        font-family: 'JetBrains Mono', monospace;
-        font-size: 10.5px;
-        color: #94a3b8;
-        box-shadow: 0 0 14px __AMBIENT1__;
+        position: relative; overflow: hidden; display: flex; justify-content: space-between; align-items: center;
+        background: rgba(15, 23, 42, 0.7); border: 1px solid __PRIMARY__; border-radius: 10px;
+        padding: 5px 14px; margin-bottom: 14px; font-family: 'JetBrains Mono', monospace; font-size: 10.5px;
+        color: #94a3b8; box-shadow: 0 0 14px __AMBIENT1__;
     }
     .hud-bar::after {
-        content: '';
-        position: absolute;
-        top: 0; left: -100%; width: 40%; height: 100%;
+        content: ''; position: absolute; top: 0; left: -100%; width: 40%; height: 100%;
         background: linear-gradient(90deg, transparent, __PRIMARY__, transparent);
-        opacity: 0.45;
-        animation: laserScan 3.5s infinite linear;
+        opacity: 0.45; animation: laserScan 3.5s infinite linear;
     }
-    @keyframes laserScan {
-        0% { left: -100%; }
-        100% { left: 200%; }
-    }
+    @keyframes laserScan { 0% { left: -100%; } 100% { left: 200%; } }
 
-    .hud-item {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        z-index: 2;
-    }
-    .hud-accent {
-        color: __ACCENT__;
-        font-weight: 700;
-    }
+    .hud-item { display: flex; align-items: center; gap: 6px; z-index: 2; }
+    .hud-accent { color: __ACCENT__; font-weight: 700; }
 
     .pulse-dot {
-        width: 7px;
-        height: 7px;
-        background-color: __PRIMARY__;
-        border-radius: 50%;
-        box-shadow: 0 0 10px __PRIMARY__;
-        animation: pulse 1.8s infinite;
+        width: 7px; height: 7px; background-color: __PRIMARY__; border-radius: 50%;
+        box-shadow: 0 0 10px __PRIMARY__; animation: pulse 1.8s infinite;
     }
-    @keyframes pulse {
-        0% { transform: scale(0.95); opacity: 0.8; }
-        50% { transform: scale(1.2); opacity: 1; }
-        100% { transform: scale(0.95); opacity: 0.8; }
-    }
+    @keyframes pulse { 0% { opacity: 0.8; } 50% { opacity: 1; } 100% { opacity: 0.8; } }
 
     .hero-container {
-        background: rgba(10, 18, 25, 0.75);
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
-        border: 1px solid __PRIMARY__;
-        border-radius: 16px;
-        padding: 14px 12px;
-        text-align: center;
-        margin-bottom: 12px;
-        animation: neonGlow 4s infinite ease-in-out;
+        background: rgba(10, 18, 25, 0.75); backdrop-filter: blur(16px);
+        border: 1px solid __PRIMARY__; border-radius: 16px; padding: 14px 12px;
+        text-align: center; margin-bottom: 12px; animation: neonGlow 4s infinite ease-in-out;
     }
-    @keyframes neonGlow {
-        0%, 100% { box-shadow: 0 0 18px -8px __GLOW__; }
-        50% { box-shadow: 0 0 30px 0px __GLOW__; }
-    }
+    @keyframes neonGlow { 0%, 100% { box-shadow: 0 0 18px -8px __GLOW__; } 50% { box-shadow: 0 0 30px 0px __GLOW__; } }
 
     .hero-title {
-        font-size: clamp(20px, 5vw, 26px);
-        font-weight: 800;
-        letter-spacing: -0.5px;
-        background: __TITLE_GRAD__;
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        margin-bottom: 2px;
+        font-size: clamp(20px, 5vw, 26px); font-weight: 800; letter-spacing: -0.5px;
+        background: __TITLE_GRAD__; -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 2px;
     }
-    .hero-subtitle {
-        color: #94a3b8;
-        font-size: 12px;
-        line-height: 1.4;
-        max-width: 440px;
-        margin: 0 auto;
-    }
+    .hero-subtitle { color: #94a3b8; font-size: 12px; line-height: 1.4; max-width: 440px; margin: 0 auto; }
 
-    /* COMPACT MICRO-PILL PROMPT BUTTONS */
     div[data-testid="stButton"] > button {
-        background: rgba(15, 23, 42, 0.85) !important;
-        border: 1px solid __PRIMARY__ !important;
-        border-radius: 8px !important;
-        color: #cbd5e1 !important;
-        font-weight: 500 !important;
-        font-size: 11px !important;
-        padding: 5px 8px !important;
-        min-height: 28px !important;
-        line-height: 1.2 !important;
-        box-shadow: none !important;
-        width: 100% !important;
-        margin-bottom: 2px !important;
+        background: rgba(15, 23, 42, 0.85) !important; border: 1px solid __PRIMARY__ !important;
+        border-radius: 8px !important; color: #cbd5e1 !important; font-weight: 500 !important;
+        font-size: 11px !important; padding: 5px 8px !important; min-height: 28px !important;
+        line-height: 1.2 !important; box-shadow: none !important; width: 100% !important; margin-bottom: 2px !important;
     }
     div[data-testid="stButton"] > button:hover {
-        border-color: __ACCENT__ !important;
-        color: #ffffff !important;
-        background: rgba(16, 185, 129, 0.2) !important;
+        border-color: __ACCENT__ !important; color: #ffffff !important; background: rgba(16, 185, 129, 0.2) !important;
     }
 
     .stChatMessage {
-        background: rgba(11, 19, 28, 0.75) !important;
-        backdrop-filter: blur(14px) !important;
-        border: 1px solid rgba(255, 255, 255, 0.08) !important;
-        border-radius: 14px !important;
-        padding: 12px 16px !important;
-        margin-bottom: 10px !important;
-        word-break: break-word;
+        background: rgba(11, 19, 28, 0.75) !important; backdrop-filter: blur(14px) !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important; border-radius: 14px !important;
+        padding: 12px 16px !important; margin-bottom: 10px !important; word-break: break-word;
     }
-    [data-testid="stChatMessageAssistant"] {
-        border-left: 3px solid __PRIMARY__ !important;
-        background: __ASSISTANT_BG__ !important;
-    }
-    [data-testid="stChatMessageUser"] {
-        border-right: 3px solid #64748b !important;
-        background: rgba(15, 23, 42, 0.4) !important;
-    }
+    [data-testid="stChatMessageAssistant"] { border-left: 3px solid __PRIMARY__ !important; background: __ASSISTANT_BG__ !important; }
+    [data-testid="stChatMessageUser"] { border-right: 3px solid #64748b !important; background: rgba(15, 23, 42, 0.4) !important; }
 
     .telemetry-chip {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        background: rgba(15, 23, 42, 0.9);
-        border: 1px solid __PRIMARY__;
-        padding: 2px 8px;
-        border-radius: 5px;
-        font-family: 'JetBrains Mono', monospace;
-        font-size: 9.5px;
-        font-weight: 600;
-        color: __ACCENT__;
-        margin-top: 6px;
+        display: inline-flex; align-items: center; gap: 6px; background: rgba(15, 23, 42, 0.9);
+        border: 1px solid __PRIMARY__; padding: 2px 8px; border-radius: 5px;
+        font-family: 'JetBrains Mono', monospace; font-size: 9.5px; font-weight: 600;
+        color: __ACCENT__; margin-top: 6px;
     }
 
     .stChatInputContainer {
-        border-radius: 14px !important;
-        border: 1px solid __PRIMARY__ !important;
-        background: rgba(8, 14, 20, 0.9) !important;
+        border-radius: 14px !important; border: 1px solid __PRIMARY__ !important; background: rgba(8, 14, 20, 0.9) !important;
     }
-    .stChatInputContainer:focus-within {
-        border-color: __ACCENT__ !important;
-        box-shadow: 0 0 16px __GLOW__ !important;
-    }
-
-    section[data-testid="stSidebar"] {
-        background-color: #04080c !important;
-        border-right: 1px solid __PRIMARY__ !important;
-    }
+    .stChatInputContainer:focus-within { border-color: __ACCENT__ !important; box-shadow: 0 0 16px __GLOW__ !important; }
+    section[data-testid="stSidebar"] { background-color: #04080c !important; border-right: 1px solid __PRIMARY__ !important; }
 </style>
 """
 
@@ -416,20 +352,23 @@ styled_css = (
 )
 st.markdown(styled_css, unsafe_allow_html=True)
 
-# CASUAL, DIRECT SYSTEM PROMPT (NO REPETITIVE SLOGANS)
+# System Prompt Construction
 if enable_exam_context and exam_days:
-    exam_note = f"Context: The student has an upcoming {safe_exam_target} test in {exam_days} days. Only reference this timeline if they ask about schedules or planning. Do NOT force it into unrelated questions."
+    exam_note = f"Context: The student has an upcoming {safe_exam_target} test in {exam_days} days. Only reference this timeline if they ask about schedules or planning."
 else:
-    exam_note = "Context: General study and academic support."
+    exam_note = "Context: General academic and study support."
 
-SYSTEM_PROMPT = f"""You are {ai_name}, an intelligent, casual, and highly knowledgeable student peer and study consultant.
+file_injection = f"\nATTACHED DOCUMENT CONTEXT FOR THIS SESSION:\n```{file_context_str}```\n" if file_context_str else ""
+
+SYSTEM_PROMPT = f"""You are {ai_name}, an intelligent, casual student peer and study consultant.
 {custom_instructions}
 
 {exam_note}
+{file_injection}
 
 STRICT CONVERSATION RULES:
-1. ANSWER THE EXACT QUESTION DIRECTLY: If the user asks a question about science, math, or study habits, give a clear, direct, and casual explanation immediately.
-2. NO ROBOTIC SLOGANS: NEVER say cliché phrases like "Let's prepare for it!", "Let's do this!", or "Time to gear up!". Speak naturally like a real 11th-grade friend.
+1. ANSWER DIRECTLY: Explain concepts simply and casually. If live weather telemetry is provided in context, share the weather directly and accurately!
+2. NO ROBOTIC SLOGANS: NEVER say generic hype lines like "Let's prepare for it!", "Let's do this!", or "Time to gear up!". Speak naturally like a real 11th-grade friend.
 3. ANTI-CHEAT: Explain concepts, methods, and outlines. Do not complete entire graded assignments or write long essays for them.
 """
 
@@ -472,7 +411,6 @@ if len(st.session_state.messages) == 0:
     """, unsafe_allow_html=True)
 
     st.caption("✨ **Quick Directives (Optional):**")
-    
     col1, col2 = st.columns(2)
     with col1:
         if st.button("🧪 3-Day Triage Plan", key="q1", use_container_width=True):
@@ -486,7 +424,30 @@ if len(st.session_state.messages) == 0:
             starter_prompt = "What are the best snacks to avoid brain fog during long revision sessions?"
 
 # ==============================================================================
-# 💬 7. CHAT HISTORY DISPLAY (WITH BENCHMARK CHIPS)
+# 🎙️ 7. SPEECH-TO-TEXT MICROPHONE RECORDER (SAFELY BOUND)
+# ==============================================================================
+voice_prompt = None
+if hasattr(st, "audio_input"):
+    with st.expander("🎙️ Tap to Speak (Voice-to-Text Input)"):
+        audio_data = st.audio_input("Record your voice directive:")
+        if audio_data and ACTIVE_API_KEY and "PASTE_YOUR_GROQ_KEY_HERE" not in ACTIVE_API_KEY:
+            audio_bytes = audio_data.getvalue()
+            if st.session_state.get("last_audio_bytes") != audio_bytes:
+                st.session_state.last_audio_bytes = audio_bytes
+                with st.spinner("Transcribing via Groq Whisper LPU..."):
+                    try:
+                        transcribe_client = Groq(api_key=ACTIVE_API_KEY)
+                        transcription = transcribe_client.audio.transcriptions.create(
+                            file=("audio.wav", audio_bytes, "audio/wav"),
+                            model="whisper-large-v3",
+                        )
+                        voice_prompt = transcription.text.strip()
+                        st.info(f"🎙️ Transcribed: *\"{voice_prompt}\"*")
+                    except Exception as err:
+                        st.error(f"Voice Transcription Error: {err}")
+
+# ==============================================================================
+# 💬 8. CHAT HISTORY DISPLAY
 # ==============================================================================
 for msg in st.session_state.messages:
     role = msg.get("role")
@@ -496,11 +457,14 @@ for msg in st.session_state.messages:
         if msg.get("telemetry"):
             st.markdown(f'<div class="telemetry-chip">{msg["telemetry"]}</div>', unsafe_allow_html=True)
 
+if st.session_state.messages:
+    auto_scroll()
+
 # ==============================================================================
-# ⚡ 8. CHAT INPUT & STREAMING PIPELINE (HARDENED)
+# ⚡ 9. CHAT INPUT & STREAMING PIPELINE (HARDENED)
 # ==============================================================================
 chat_input = st.chat_input(f"Message {safe_ai_name}...")
-user_prompt = chat_input or starter_prompt
+user_prompt = voice_prompt or chat_input or starter_prompt
 
 if user_prompt:
     if not ACTIVE_API_KEY or "PASTE_YOUR_GROQ_KEY_HERE" in ACTIVE_API_KEY:
@@ -510,18 +474,26 @@ if user_prompt:
         with st.chat_message("user", avatar="👤"):
             st.markdown(user_prompt)
 
+        auto_scroll()
+
         with st.chat_message("assistant", avatar=ai_avatar):
             try:
                 client = Groq(api_key=ACTIVE_API_KEY)
                 active_model = get_groq_model(client)
 
-                # AIRTIGHT PAYLOAD SANITIZER: Only sends clean role & non-empty content
+                # Check for Live Satellite Weather Query
+                live_weather_report = get_live_weather(user_prompt)
+                dynamic_system = SYSTEM_PROMPT
+                if live_weather_report:
+                    dynamic_system += f"\n\n[REAL-TIME DATA INJECTION]: {live_weather_report}. Use this live data to answer the user's weather question accurately!"
+
+                # Strict payload sanitizer: Only sends clean role & non-empty content
                 clean_history = [
                     {"role": m["role"], "content": m["content"]}
                     for m in st.session_state.messages[-10:]
                     if m.get("role") in ["user", "assistant"] and str(m.get("content", "")).strip()
                 ]
-                payload = [{"role": "system", "content": SYSTEM_PROMPT}] + clean_history
+                payload = [{"role": "system", "content": dynamic_system}] + clean_history
 
                 start_time = time.time()
 
@@ -556,6 +528,8 @@ if user_prompt:
                     "telemetry": telemetry_str
                 })
                 save_history(clean_name, st.session_state.messages)
+
+                auto_scroll()
 
                 if len(st.session_state.messages) == 2:
                     st.rerun()
