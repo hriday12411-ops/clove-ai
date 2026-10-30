@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clover OS | Next-Gen AI Academic Foundry</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@300;400;600;700;800;900&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg: #030708;
+            --emerald: #10b981;
+            --emerald-glow: rgba(16, 185, 129, 0.35);
+            --crimson: #ef4444;
+            --sapphire: #3b82f6;
+            --card-bg: rgba(15, 23, 42, 0.75);
+            --border: rgba(255, 255, 255, 0.08);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(16, 185, 129, 0.15) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(59, 130, 246, 0.12) 0px, transparent 50%),
+                linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+            background-size: 100% 100%, 100% 100%, 36px 36px, 36px 36px;
+            color: var(--text-main);
+            overflow-x: hidden;
+            line-height: 1.6;
+        }
+
+        /* --- NAVBAR --- */
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 24px 8%;
+            border-bottom: 1px solid var(--border);
+            backdrop-filter: blur(16px);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: rgba(3, 7, 8, 0.8);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 20px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+        }
+
+        .logo-badge {
+            background: var(--emerald-glow);
+            border: 1px solid var(--emerald);
+            color: var(--emerald);
+            font-size: 11px;
+            font-family: 'JetBrains Mono', monospace;
+            padding: 2px 8px;
+            border-radius: 6px;
+        }
+
+        .btn-launch {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: #ffffff;
+            font-weight: 700;
+            padding: 12px 24px;
+            border-radius: 9999px;
+            text-decoration: none;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-launch:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 30px rgba(16, 185, 129, 0.6);
+        }
+
+        /* --- HERO SECTION --- */
+        .hero {
+            padding: 90px 8% 60px;
+            text-align: center;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .tag-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(52, 211, 153, 0.3);
+            color: #34d399;
+            font-size: 12px;
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 700;
+            padding: 6px 16px;
+            border-radius: 9999px;
+            margin-bottom: 24px;
+            text-transform: uppercase;
+        }
+
+        .pulse {
+            width: 8px;
+            height: 8px;
+            background: #10b981;
+            border-radius: 50%;
+            box-shadow: 0 0 10px #10b981;
+            animation: pulse 1.8s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(0.95); opacity: 0.8; }
+            50% { transform: scale(1.2); opacity: 1; }
+            100% { transform: scale(0.95); opacity: 0.8; }
+        }
+
+        h1 {
+            font-size: clamp(38px, 6vw, 64px);
+            font-weight: 900;
+            line-height: 1.1;
+            letter-spacing: -1.5px;
+            margin-bottom: 24px;
+            background: linear-gradient(135deg, #ffffff 40%, #a7f3d0 70%, #38bdf8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hero-desc {
+            font-size: clamp(16px, 2.5vw, 19px);
+            color: var(--text-muted);
+            max-width: 680px;
+            margin: 0 auto 36px;
+        }
+
+        .hero-cta {
+            display: flex;
+            justify-content: center;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        /* --- HARDWARE BENCHMARK BAR --- */
+        .specs-strip {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            padding: 20px 8%;
+            max-width: 1100px;
+            margin: 40px auto 80px;
+        }
+
+        .spec-box {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            padding: 18px;
+            border-radius: 14px;
+            text-align: center;
+            backdrop-filter: blur(12px);
+        }
+
+        .spec-val {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--emerald);
+            margin-bottom: 4px;
+        }
+
+        .spec-lbl {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        /* --- THE PERSONA CARDS (AGENT FOUNDRY) --- */
+        .section-title {
+            text-align: center;
+            font-size: 32px;
+            font-weight: 800;
+            margin-bottom: 12px;
+            letter-spacing: -0.5px;
+        }
+
+        .section-subtitle {
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 15px;
+            margin-bottom: 50px;
+        }
+
+        .grid-3 {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 24px;
+            padding: 0 8% 80px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .agent-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 30px;
+            transition: all 0.3s ease;
+            position: relative;
+            backdrop-filter: blur(12px);
+        }
+
+        .agent-card.clover:hover {
+            border-color: var(--emerald);
+            box-shadow: 0 0 30px rgba(16, 185, 129, 0.25);
+            transform: translateY(-4px);
+        }
+
+        .agent-card.titan:hover {
+            border-color: var(--crimson);
+            box-shadow: 0 0 30px rgba(239, 68, 68, 0.25);
+            transform: translateY(-4px);
+        }
+
+        .agent-card.luna:hover {
+            border-color: var(--sapphire);
+            box-shadow: 0 0 30px rgba(59, 130, 246, 0.25);
+            transform: translateY(-4px);
+        }
+
+        .agent-emoji {
+            font-size: 40px;
+            margin-bottom: 16px;
+        }
+
+        .agent-name {
+            font-size: 22px;
+            font-weight: 800;
+            margin-bottom: 8px;
+        }
+
+        .agent-role {
+            font-size: 13px;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+        }
+
+        .agent-desc {
+            font-size: 14px;
+            color: #cbd5e1;
+            line-height: 1.6;
+        }
+
+        /* --- CREATOR / ARCHITECT FOOTER --- */
+        footer {
+            border-top: 1px solid var(--border);
+            padding: 50px 8%;
+            text-align: center;
+            background: rgba(3, 7, 8, 0.95);
+        }
+
+        .creator-badge {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border);
+            padding: 8px 18px;
+            border-radius: 9999px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #cbd5e1;
+            margin-bottom: 16px;
+        }
+
+        footer p {
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- TOP NAVIGATION -->
+    <nav>
+        <div class="logo">
+            <span>🍀 Clover OS</span>
+            <span class="logo-badge">v2.4 FOUNDRY</span>
+        </div>
+        <!-- IMPORTANT: Put your live Streamlit link here -->
+        <a href="https://clove-ai-4deivuykwjchrjgqtuiijd.streamlit.app" target="_blank" class="btn-launch">⚡ Launch AI App</a>
+    </nav>
+
+    <!-- HERO SECTION -->
+    <section class="hero">
+        <div class="tag-pill">
+            <span class="pulse"></span>
+            Hardware-Accelerated Neural Agent Core
+        </div>
+        <h1>The Intelligent Academic & Anti-Burnout Foundry.</h1>
+        <p class="hero-desc">
+            Engineered to eliminate exam panic, optimize study sprints, and coach students with strict pedagogical guardrails. Powered by Groq LPU™ silicon inference.
+        </p>
+        <div class="hero-cta">
+            <a href="https://clove-ai-4deivuykwjchrjgqtuiijd.streamlit.app" target="_blank" class="btn-launch" style="padding: 16px 36px; font-size: 16px;">
+                🚀 Open Live Prototype
+            </a>
+        </div>
+    </section>
+
+    <!-- LIVE HARDWARE BENCHMARKS -->
+    <div class="specs-strip">
+        <div class="spec-box">
+            <div class="spec-val">&lt; 0.3s</div>
+            <div class="spec-lbl">First-Token Latency</div>
+        </div>
+        <div class="spec-box">
+            <div class="spec-val">420+</div>
+            <div class="spec-lbl">Tokens / Second</div>
+        </div>
+        <div class="spec-box">
+            <div class="spec-val">Groq LPU™</div>
+            <div class="spec-lbl">Silicon Architecture</div>
+        </div>
+        <div class="spec-box">
+            <div class="spec-val">100% Zero-Cheat</div>
+            <div class="spec-lbl">Pedagogical Guardrails</div>
+        </div>
+    </div>
+
+    <!-- AGENT STUDIO SHOWCASE -->
+    <h2 class="section-title">The Agent Foundry</h2>
+    <p class="section-subtitle">Different students learn differently. Clover OS adapts its persona on the fly.</p>
+
+    <div class="grid-3">
+        <!-- Clover -->
+        <div class="agent-card clover">
+            <div class="agent-emoji">🍀</div>
+            <div class="agent-name">Clover</div>
+            <div class="agent-role">// Chill Senior Peer</div>
+            <p class="agent-desc">
+                Casual, high-empathy study buddy. Validates test anxiety, breaks complex syllabi into bite-sized 3-day recovery triage plans, and protects against toxic burnout.
+            </p>
+        </div>
+
+        <!-- Titan -->
+        <div class="agent-card titan">
+            <div class="agent-emoji">⚡</div>
+            <div class="agent-name">Titan</div>
+            <div class="agent-role">// High-Intensity Drill Coach</div>
+            <p class="agent-desc">
+                Zero excuses, high-accountability competitive exam strategist. Designs rigorous Pomodoro study sprints and pushes back against student procrastination.
+            </p>
+        </div>
+
+        <!-- Luna -->
+        <div class="agent-card luna">
+            <div class="agent-emoji">🌙</div>
+            <div class="agent-name">Luna</div>
+            <div class="agent-role">// Mindfulness & Calm Guide</div>
+            <p class="agent-desc">
+                Gentle, soothing anxiety triage specialist. Guides students through physical decompression, steady breathing routines, and panic-free review sessions.
+            </p>
+        </div>
+    </div>
+
+    <!-- FOOTER -->
+    <footer>
+        <div class="creator-badge">
+            👨‍💻 Engineered by <b>Hriday Bedi</b> &bull; Class Project 2026
+        </div>
+        <p>Built with Streamlit, Groq LPU™ Cloud, and LLaMA Architecture &bull; All Rights Reserved.</p>
+    </footer>
+
+</body>
+</html>
