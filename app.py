@@ -11,186 +11,16 @@ from groq import Groq
 # Paste your working Groq API key (starts with gsk_) between these quotes:
 BUILTIN_GROQ_KEY = "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"
 
-# ==============================================================================
-# 📱 2. UI SETUP & CYBER HUD STYLING
-# ==============================================================================
+# Page Initialization (Must be first Streamlit command)
 st.set_page_config(
-    page_title="CLOVER STUDIO // AI AGENT FOUNDRY",
+    page_title="CLOVER STUDIO // AI FOUNDRY",
     page_icon="🍀",
     layout="centered",
     initial_sidebar_state="collapsed"
 )
 
-st.markdown("""
-<style>
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap');
-
-    html, body, [class*="css"] {
-        font-family: 'Plus Jakarta Sans', sans-serif;
-    }
-    code, pre {
-        font-family: 'JetBrains Mono', monospace !important;
-    }
-
-    /* Cyber Grid & Ambient Mesh Background */
-    .stApp {
-        background-color: #030708 !important;
-        background-image: 
-            radial-gradient(at 0% 0%, rgba(16, 185, 129, 0.18) 0px, transparent 50%),
-            radial-gradient(at 100% 100%, rgba(6, 182, 212, 0.14) 0px, transparent 50%),
-            linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px) !important;
-        background-size: 100% 100%, 100% 100%, 30px 30px, 30px 30px !important;
-        color: #f1f5f9;
-    }
-
-    /* Top Telemetry HUD Strip */
-    .hud-bar {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        background: rgba(15, 23, 42, 0.7);
-        border: 1px solid rgba(52, 211, 153, 0.25);
-        border-radius: 12px;
-        padding: 6px 16px;
-        margin-bottom: 20px;
-        font-family: 'JetBrains Mono', monospace;
-        font-size: 11px;
-        color: #94a3b8;
-        box-shadow: 0 0 15px rgba(16, 185, 129, 0.1);
-    }
-    .hud-item {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-    }
-    .hud-green {
-        color: #34d399;
-        font-weight: 700;
-    }
-
-    /* Pulsing Core Badge */
-    .pulse-dot {
-        width: 8px;
-        height: 8px;
-        background-color: #10b981;
-        border-radius: 50%;
-        box-shadow: 0 0 12px #10b981;
-        animation: pulse 1.8s infinite;
-    }
-    @keyframes pulse {
-        0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
-        70% { transform: scale(1.2); box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
-        100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
-    }
-
-    /* Hero Holographic Container */
-    .hero-container {
-        background: rgba(10, 18, 25, 0.75);
-        backdrop-filter: blur(20px);
-        -webkit-backdrop-filter: blur(20px);
-        border: 1px solid rgba(52, 211, 153, 0.3);
-        border-radius: 24px;
-        padding: 26px 20px;
-        text-align: center;
-        margin-bottom: 22px;
-        box-shadow: 0 0 35px -10px rgba(16, 185, 129, 0.2);
-    }
-    .hero-title {
-        font-size: clamp(24px, 6vw, 36px);
-        font-weight: 900;
-        letter-spacing: -1px;
-        background: linear-gradient(135deg, #ffffff 10%, #6ee7b7 55%, #06b6d4 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        margin-bottom: 8px;
-    }
-    .hero-subtitle {
-        color: #94a3b8;
-        font-size: 13.5px;
-        line-height: 1.6;
-        max-width: 520px;
-        margin: 0 auto;
-    }
-
-    /* Metric Chips */
-    .metric-row {
-        display: flex;
-        justify-content: center;
-        gap: 8px;
-        margin-top: 14px;
-        flex-wrap: wrap;
-    }
-    .metric-chip {
-        background: rgba(16, 185, 129, 0.08);
-        border: 1px solid rgba(52, 211, 153, 0.25);
-        padding: 4px 10px;
-        border-radius: 8px;
-        font-family: 'JetBrains Mono', monospace;
-        font-size: 11px;
-        font-weight: 600;
-        color: #a7f3d0;
-    }
-
-    /* Glowing Prompt Cards */
-    div[data-testid="stButton"] > button {
-        background: linear-gradient(135deg, rgba(15, 23, 42, 0.85), rgba(10, 20, 28, 0.95)) !important;
-        border: 1px solid rgba(52, 211, 153, 0.28) !important;
-        border-radius: 14px !important;
-        color: #e2e8f0 !important;
-        font-weight: 600 !important;
-        font-size: 13px !important;
-        padding: 12px 16px !important;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4) !important;
-        width: 100% !important;
-    }
-    div[data-testid="stButton"] > button:hover {
-        transform: translateY(-2px) !important;
-        border-color: #34d399 !important;
-        box-shadow: 0 0 22px rgba(16, 185, 129, 0.4) !important;
-        color: #ffffff !important;
-    }
-
-    /* Chat Messages */
-    .stChatMessage {
-        background: rgba(11, 19, 28, 0.75) !important;
-        backdrop-filter: blur(14px) !important;
-        border: 1px solid rgba(255, 255, 255, 0.08) !important;
-        border-radius: 16px !important;
-        padding: 14px 18px !important;
-        margin-bottom: 12px !important;
-        word-break: break-word;
-    }
-    [data-testid="stChatMessageAssistant"] {
-        border-left: 3px solid #10b981 !important;
-        background: rgba(6, 78, 59, 0.18) !important;
-    }
-    [data-testid="stChatMessageUser"] {
-        border-right: 3px solid #06b6d4 !important;
-        background: rgba(8, 28, 44, 0.35) !important;
-    }
-
-    /* Glowing Input */
-    .stChatInputContainer {
-        border-radius: 16px !important;
-        border: 1px solid rgba(52, 211, 153, 0.3) !important;
-        background: rgba(8, 14, 20, 0.9) !important;
-    }
-    .stChatInputContainer:focus-within {
-        border-color: #10b981 !important;
-        box-shadow: 0 0 20px rgba(16, 185, 129, 0.35) !important;
-    }
-
-    section[data-testid="stSidebar"] {
-        background-color: #04080c !important;
-        border-right: 1px solid rgba(52, 211, 153, 0.15) !important;
-    }
-</style>
-""", unsafe_allow_html=True)
-
 # ==============================================================================
-# 💾 3. STORAGE & MODEL AUTO-DETECTION
+# 💾 2. CORE STORAGE & MODEL RESOLUTION (INITIALIZED EARLY)
 # ==============================================================================
 BASE = Path(__file__).parent
 HISTORY_DIR = BASE / "students"
@@ -235,13 +65,12 @@ def get_groq_model(_client):
         return "llama-3.3-70b-versatile"
 
 # ==============================================================================
-# ⚙️ 4. SIDEBAR: AGENT STUDIO & CUSTOMIZATION ENGINE
+# ⚙️ 3. SIDEBAR CONFIGURATION (PERSONAS & THEMES)
 # ==============================================================================
 with st.sidebar:
     st.markdown("### 🛠️ **AGENT STUDIO**")
     st.caption("Dynamic AI Customization Engine")
 
-    # Persona Archetype Selector
     persona_mode = st.selectbox(
         "Select AI Archetype:",
         [
@@ -252,39 +81,72 @@ with st.sidebar:
         ]
     )
 
-    # Dynamic Persona Configuration
+    # Dynamic Persona & Theme Mapping
     if "Clover" in persona_mode:
         ai_name = "Clover"
         ai_avatar = "🍀"
         ai_tagline = "Your chill senior schoolmate and anti-burnout study buddy."
         custom_instructions = "You are Clover, a casual, friendly, empathetic senior student. Use warm phrasing, validate emotions first, and make realistic 3-day recovery study plans."
+        theme = {
+            "primary": "#10b981",          # Emerald
+            "accent": "#34d399",
+            "ambient1": "rgba(16, 185, 129, 0.22)",
+            "ambient2": "rgba(6, 182, 212, 0.14)",
+            "assistant_bg": "rgba(6, 78, 59, 0.22)",
+            "title_grad": "linear-gradient(135deg, #ffffff 10%, #6ee7b7 55%, #06b6d4 100%)",
+            "glow_rgba": "rgba(16, 185, 129, 0.4)"
+        }
     elif "Titan" in persona_mode:
         ai_name = "Titan"
         ai_avatar = "⚡"
         ai_tagline = "High-accountability, zero-excuses exam drill coach."
         custom_instructions = "You are Titan, an intense, direct, laser-focused academic drill coach for competitive exams. Push back against procrastination, demand rigorous Pomodoro sprints, and give sharp, bulletproof schedules."
+        theme = {
+            "primary": "#ef4444",          # Crimson Red
+            "accent": "#f87171",
+            "ambient1": "rgba(239, 68, 68, 0.25)",
+            "ambient2": "rgba(249, 115, 22, 0.16)",
+            "assistant_bg": "rgba(127, 29, 29, 0.25)",
+            "title_grad": "linear-gradient(135deg, #ffffff 10%, #fca5a5 50%, #f97316 100%)",
+            "glow_rgba": "rgba(239, 68, 68, 0.4)"
+        }
     elif "Luna" in persona_mode:
         ai_name = "Luna"
         ai_avatar = "🌙"
         ai_tagline = "Calming mindfulness guide for acute test anxiety."
         custom_instructions = "You are Luna, a gentle, soothing, mindfulness-focused study companion. Help students take deep breaths, un-clench their jaws, ground their focus, and approach topics with zero panic."
+        theme = {
+            "primary": "#3b82f6",          # Navy / Sapphire
+            "accent": "#60a5fa",
+            "ambient1": "rgba(37, 99, 235, 0.26)",
+            "ambient2": "rgba(30, 58, 138, 0.40)",
+            "assistant_bg": "rgba(30, 58, 138, 0.28)",
+            "title_grad": "linear-gradient(135deg, #ffffff 10%, #93c5fd 50%, #3b82f6 100%)",
+            "glow_rgba": "rgba(59, 130, 246, 0.45)"
+        }
     else:
         st.markdown("##### 🎨 **Design Your Custom Agent:**")
         ai_name = st.text_input("Agent Codename:", value="Athena").strip() or "CustomAI"
         raw_avatar = st.text_input("Agent Avatar Emoji:", value="🦉").strip()
-        # Fallback if invalid or multiple characters are entered
         ai_avatar = raw_avatar if (raw_avatar and len(raw_avatar) <= 2) else "🤖"
-        ai_tagline = st.text_input("Agent Purpose:", value="Strategic logic mentor for advanced problems.").strip()
+        ai_tagline = st.text_input("Agent Purpose:", value="Strategic logic mentor for advanced problem-solving.").strip()
         custom_instructions = st.text_area(
             "Persona & Tone Directives:",
-            value="You are Athena, a sharp, intellectual mentor who explains tough science topics using historical examples and clear logical deductions."
+            value="You are Athena, a sharp intellectual mentor who explains tough science topics using historical examples and clear logical deductions."
         )
+        theme = {
+            "primary": "#a855f7",          # Electric Violet
+            "accent": "#c084fc",
+            "ambient1": "rgba(168, 85, 247, 0.25)",
+            "ambient2": "rgba(236, 72, 153, 0.16)",
+            "assistant_bg": "rgba(88, 28, 135, 0.25)",
+            "title_grad": "linear-gradient(135deg, #ffffff 10%, #d8b4fe 50%, #ec4899 100%)",
+            "glow_rgba": "rgba(168, 85, 247, 0.4)"
+        }
 
     st.divider()
     st.markdown("#### 👤 **Student Workspace**")
     student_name = st.text_input("Active Profile ID:", value="Hriday Bedi")
-    
-    # Safe filename sanitization for Windows/Linux
     raw_slug = f"{student_name.strip().lower()}_{ai_name.lower()}"
     clean_name = re.sub(r'[^a-zA-Z0-9_]', '_', raw_slug)
 
@@ -304,7 +166,190 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
 
-# Build Master System Prompt with Permanent Guardrails
+# ==============================================================================
+# 🎨 4. DYNAMIC THEME INJECTION
+# ==============================================================================
+raw_css = """
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+    html, body, [class*="css"] {
+        font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    code, pre {
+        font-family: 'JetBrains Mono', monospace !important;
+    }
+
+    /* Ambient Dynamic Mesh */
+    .stApp {
+        background-color: #030708 !important;
+        background-image: 
+            radial-gradient(at 0% 0%, __AMBIENT1__ 0px, transparent 50%),
+            radial-gradient(at 100% 100%, __AMBIENT2__ 0px, transparent 50%),
+            linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px) !important;
+        background-size: 100% 100%, 100% 100%, 30px 30px, 30px 30px !important;
+        color: #f1f5f9;
+    }
+
+    /* Top Telemetry HUD Strip */
+    .hud-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: rgba(15, 23, 42, 0.7);
+        border: 1px solid __PRIMARY__;
+        border-radius: 12px;
+        padding: 6px 16px;
+        margin-bottom: 20px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 11px;
+        color: #94a3b8;
+        box-shadow: 0 0 16px __AMBIENT1__;
+    }
+    .hud-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .hud-accent {
+        color: __ACCENT__;
+        font-weight: 700;
+    }
+
+    /* Pulsing Core Badge */
+    .pulse-dot {
+        width: 8px;
+        height: 8px;
+        background-color: __PRIMARY__;
+        border-radius: 50%;
+        box-shadow: 0 0 12px __PRIMARY__;
+        animation: pulse 1.8s infinite;
+    }
+    @keyframes pulse {
+        0% { transform: scale(0.95); box-shadow: 0 0 0 0 __AMBIENT1__; }
+        70% { transform: scale(1.2); box-shadow: 0 0 0 8px transparent; }
+        100% { transform: scale(0.95); box-shadow: 0 0 0 0 transparent; }
+    }
+
+    /* Hero Holographic Container */
+    .hero-container {
+        background: rgba(10, 18, 25, 0.75);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid __PRIMARY__;
+        border-radius: 24px;
+        padding: 26px 20px;
+        text-align: center;
+        margin-bottom: 22px;
+        box-shadow: 0 0 35px -10px __AMBIENT1__;
+    }
+    .hero-title {
+        font-size: clamp(24px, 6vw, 36px);
+        font-weight: 900;
+        letter-spacing: -1px;
+        background: __TITLE_GRAD__;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 8px;
+    }
+    .hero-subtitle {
+        color: #94a3b8;
+        font-size: 13.5px;
+        line-height: 1.6;
+        max-width: 520px;
+        margin: 0 auto;
+    }
+
+    /* Metric Chips */
+    .metric-row {
+        display: flex;
+        justify-content: center;
+        gap: 8px;
+        margin-top: 14px;
+        flex-wrap: wrap;
+    }
+    .metric-chip {
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid __PRIMARY__;
+        padding: 4px 10px;
+        border-radius: 8px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 11px;
+        font-weight: 600;
+        color: __ACCENT__;
+    }
+
+    /* Glowing Prompt Cards */
+    div[data-testid="stButton"] > button {
+        background: linear-gradient(135deg, rgba(15, 23, 42, 0.85), rgba(10, 20, 28, 0.95)) !important;
+        border: 1px solid __PRIMARY__ !important;
+        border-radius: 14px !important;
+        color: #e2e8f0 !important;
+        font-weight: 600 !important;
+        font-size: 13px !important;
+        padding: 12px 16px !important;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4) !important;
+        width: 100% !important;
+    }
+    div[data-testid="stButton"] > button:hover {
+        transform: translateY(-2px) !important;
+        border-color: __ACCENT__ !important;
+        box-shadow: 0 0 22px __GLOW__ !important;
+        color: #ffffff !important;
+    }
+
+    /* Chat Messages */
+    .stChatMessage {
+        background: rgba(11, 19, 28, 0.75) !important;
+        backdrop-filter: blur(14px) !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        border-radius: 16px !important;
+        padding: 14px 18px !important;
+        margin-bottom: 12px !important;
+        word-break: break-word;
+    }
+    [data-testid="stChatMessageAssistant"] {
+        border-left: 3px solid __PRIMARY__ !important;
+        background: __ASSISTANT_BG__ !important;
+    }
+    [data-testid="stChatMessageUser"] {
+        border-right: 3px solid #64748b !important;
+        background: rgba(15, 23, 42, 0.4) !important;
+    }
+
+    /* Glowing Input */
+    .stChatInputContainer {
+        border-radius: 16px !important;
+        border: 1px solid __PRIMARY__ !important;
+        background: rgba(8, 14, 20, 0.9) !important;
+    }
+    .stChatInputContainer:focus-within {
+        border-color: __ACCENT__ !important;
+        box-shadow: 0 0 20px __GLOW__ !important;
+    }
+
+    section[data-testid="stSidebar"] {
+        background-color: #04080c !important;
+        border-right: 1px solid __PRIMARY__ !important;
+    }
+</style>
+"""
+
+styled_css = (
+    raw_css
+    .replace("__PRIMARY__", theme["primary"])
+    .replace("__ACCENT__", theme["accent"])
+    .replace("__AMBIENT1__", theme["ambient1"])
+    .replace("__AMBIENT2__", theme["ambient2"])
+    .replace("__ASSISTANT_BG__", theme["assistant_bg"])
+    .replace("__TITLE_GRAD__", theme["title_grad"])
+    .replace("__GLOW__", theme["glow_rgba"])
+)
+st.markdown(styled_css, unsafe_allow_html=True)
+
+# Master System Prompt with Permanent Guardrails
 SYSTEM_PROMPT = f"""You are {ai_name}, an AI student academic companion.
 {custom_instructions}
 
@@ -321,7 +366,6 @@ if "messages" not in st.session_state or st.session_state.get("current_profile")
     st.session_state.current_profile = clean_name
     st.session_state.messages = load_history(clean_name)
 
-# Safe HTML sanitization for dynamic cards
 safe_ai_name = ai_name.replace("<", "").replace(">", "")
 safe_ai_tagline = ai_tagline.replace("<", "").replace(">", "")
 
@@ -332,13 +376,13 @@ st.markdown(f"""
 <div class="hud-bar">
     <div class="hud-item">
         <span class="pulse-dot"></span>
-        <span>AGENT: <span class="hud-green">{safe_ai_name.upper()}</span></span>
+        <span>AGENT: <span class="hud-accent">{safe_ai_name.upper()}</span></span>
     </div>
     <div class="hud-item">
-        <span>CORE: <span class="hud-green">GROQ LPU™</span></span>
+        <span>CORE: <span class="hud-accent">GROQ LPU™</span></span>
     </div>
     <div class="hud-item">
-        <span>LATENCY: <span class="hud-green">&lt;0.3s</span></span>
+        <span>LATENCY: <span class="hud-accent">&lt;0.3s</span></span>
     </div>
 </div>
 """, unsafe_allow_html=True)
@@ -361,7 +405,7 @@ if len(st.session_state.messages) == 0:
     </div>
     """, unsafe_allow_html=True)
 
-    st.markdown("<p style='font-size: 11px; font-weight: 700; color: #34d399; font-family: \"JetBrains Mono\", monospace; text-transform: uppercase;'>// Quick Directives</p>", unsafe_allow_html=True)
+    st.markdown("<p style='font-size: 11px; font-weight: 700; color: #94a3b8; font-family: \"JetBrains Mono\", monospace; text-transform: uppercase;'>// Quick Directives</p>", unsafe_allow_html=True)
     
     col1, col2 = st.columns(2)
     with col1:
@@ -392,7 +436,7 @@ user_prompt = chat_input or starter_prompt
 
 if user_prompt:
     if not ACTIVE_API_KEY or "PASTE_YOUR_GROQ_KEY_HERE" in ACTIVE_API_KEY:
-        st.warning(f"👈 Please paste your Groq API Key in line 15 or the sidebar to unlock {safe_ai_name}.")
+        st.warning(f"👈 Please paste your Groq API Key in line 16 or the sidebar to unlock {safe_ai_name}.")
     else:
         st.session_state.messages.append({"role": "user", "content": user_prompt})
         with st.chat_message("user", avatar="👤"):
