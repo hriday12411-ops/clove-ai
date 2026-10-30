@@ -149,7 +149,7 @@ with st.sidebar:
     st.markdown("#### 👤 **Student Workspace**")
     student_name = st.text_input("Active Profile ID:", value="Hriday Bedi")
 
-    # Exam Countdown Tracker with Safe Fallback
+    # Exam Countdown Tracker
     st.markdown("##### 🎯 **Exam Countdown Tracker**")
     col_a, col_b = st.columns(2)
     with col_a:
@@ -242,7 +242,6 @@ raw_css = """
         color: #94a3b8;
         box-shadow: 0 0 16px __AMBIENT1__;
     }
-    /* Moving Scanner Beam Effect */
     .hud-bar::after {
         content: '';
         position: absolute;
@@ -282,7 +281,7 @@ raw_css = """
         100% { transform: scale(0.95); box-shadow: 0 0 0 0 transparent; }
     }
 
-    /* Hero Holographic Container with BREATHING NEON PULSE */
+    /* Hero Container with Neon Pulse */
     .hero-container {
         background: rgba(10, 18, 25, 0.75);
         backdrop-filter: blur(20px);
@@ -374,7 +373,7 @@ raw_css = """
         background: rgba(15, 23, 42, 0.4) !important;
     }
 
-    /* Hardware Telemetry Benchmark Chip */
+    /* Telemetry Chip */
     .telemetry-chip {
         display: inline-flex;
         align-items: center;
@@ -502,7 +501,7 @@ for msg in st.session_state.messages:
             st.markdown(f'<div class="telemetry-chip">{msg["telemetry"]}</div>', unsafe_allow_html=True)
 
 # ==============================================================================
-# ⚡ 8. CHAT INPUT & LIVE STREAMING PIPELINE (WITH BENCHMARK TIMER)
+# ⚡ 8. CHAT INPUT & LIVE STREAMING PIPELINE (HARDENED)
 # ==============================================================================
 chat_input = st.chat_input(f"Message {safe_ai_name} (Target: {safe_exam_target} in {exam_days} days)...")
 user_prompt = chat_input or starter_prompt
@@ -520,8 +519,15 @@ if user_prompt:
                 client = Groq(api_key=ACTIVE_API_KEY)
                 active_model = get_groq_model(client)
 
-                payload = [{"role": "system", "content": SYSTEM_PROMPT}]
-                payload.extend(st.session_state.messages[-10:])
+                # AIRTIGHT PAYLOAD SANITIZER:
+                # 1. Strips away any 'telemetry' or extra keys
+                # 2. Ensures only valid 'role' and non-empty 'content' strings reach Groq
+                clean_history = [
+                    {"role": m["role"], "content": m["content"]}
+                    for m in st.session_state.messages[-10:]
+                    if m.get("role") in ["user", "assistant"] and str(m.get("content", "")).strip()
+                ]
+                payload = [{"role": "system", "content": SYSTEM_PROMPT}] + clean_history
 
                 start_time = time.time()
 
@@ -561,6 +567,9 @@ if user_prompt:
                     st.rerun()
 
             except Exception as e:
+                # If an error ever occurs, roll back the un-replied prompt so history isn't poisoned!
+                if st.session_state.messages and st.session_state.messages[-1].get("role") == "user":
+                    st.session_state.messages.pop()
                 st.error(f"Inference Engine Error: {e}")
 
     
