@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from pathlib import Path
 import streamlit as st
 from groq import Groq
@@ -11,10 +12,10 @@ from groq import Groq
 BUILTIN_GROQ_KEY = "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"
 
 # ==============================================================================
-# 📱 2. UI SETUP & FUTURISTIC HUD STYLING
+# 📱 2. UI SETUP & CYBER HUD STYLING
 # ==============================================================================
 st.set_page_config(
-    page_title="CLOVER // NEURAL OS",
+    page_title="CLOVER STUDIO // AI AGENT FOUNDRY",
     page_icon="🍀",
     layout="centered",
     initial_sidebar_state="collapsed"
@@ -31,7 +32,7 @@ st.markdown("""
         font-family: 'JetBrains Mono', monospace !important;
     }
 
-    /* --- CYBER GRID & AMBIENT MESH BACKGROUND --- */
+    /* Cyber Grid & Ambient Mesh Background */
     .stApp {
         background-color: #030708 !important;
         background-image: 
@@ -43,7 +44,7 @@ st.markdown("""
         color: #f1f5f9;
     }
 
-    /* --- TOP HUD TELEMETRY STRIP --- */
+    /* Top Telemetry HUD Strip */
     .hud-bar {
         display: flex;
         justify-content: space-between;
@@ -68,7 +69,7 @@ st.markdown("""
         font-weight: 700;
     }
 
-    /* --- PULSING CORE BADGE --- */
+    /* Pulsing Core Badge */
     .pulse-dot {
         width: 8px;
         height: 8px;
@@ -83,48 +84,47 @@ st.markdown("""
         100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
     }
 
-    /* --- HERO HOLOGRAPHIC CONTAINER --- */
+    /* Hero Holographic Container */
     .hero-container {
         background: rgba(10, 18, 25, 0.75);
         backdrop-filter: blur(20px);
         -webkit-backdrop-filter: blur(20px);
         border: 1px solid rgba(52, 211, 153, 0.3);
         border-radius: 24px;
-        padding: 30px 24px;
+        padding: 26px 20px;
         text-align: center;
-        margin-bottom: 25px;
-        box-shadow: 0 0 35px -10px rgba(16, 185, 129, 0.2), inset 0 0 20px rgba(16, 185, 129, 0.04);
+        margin-bottom: 22px;
+        box-shadow: 0 0 35px -10px rgba(16, 185, 129, 0.2);
     }
     .hero-title {
-        font-size: clamp(26px, 6vw, 38px);
+        font-size: clamp(24px, 6vw, 36px);
         font-weight: 900;
         letter-spacing: -1px;
         background: linear-gradient(135deg, #ffffff 10%, #6ee7b7 55%, #06b6d4 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         margin-bottom: 8px;
-        text-shadow: 0 0 30px rgba(16, 185, 129, 0.25);
     }
     .hero-subtitle {
         color: #94a3b8;
-        font-size: 14px;
+        font-size: 13.5px;
         line-height: 1.6;
         max-width: 520px;
         margin: 0 auto;
     }
 
-    /* --- METRIC PILLS --- */
+    /* Metric Chips */
     .metric-row {
         display: flex;
         justify-content: center;
-        gap: 10px;
-        margin-top: 18px;
+        gap: 8px;
+        margin-top: 14px;
         flex-wrap: wrap;
     }
     .metric-chip {
         background: rgba(16, 185, 129, 0.08);
         border: 1px solid rgba(52, 211, 153, 0.25);
-        padding: 5px 12px;
+        padding: 4px 10px;
         border-radius: 8px;
         font-family: 'JetBrains Mono', monospace;
         font-size: 11px;
@@ -132,29 +132,27 @@ st.markdown("""
         color: #a7f3d0;
     }
 
-    /* --- TRANSFORM DEFAULT STREAMLIT BUTTONS INTO GLOWING CARDS --- */
+    /* Glowing Prompt Cards */
     div[data-testid="stButton"] > button {
         background: linear-gradient(135deg, rgba(15, 23, 42, 0.85), rgba(10, 20, 28, 0.95)) !important;
         border: 1px solid rgba(52, 211, 153, 0.28) !important;
         border-radius: 14px !important;
         color: #e2e8f0 !important;
         font-weight: 600 !important;
-        font-size: 13.5px !important;
-        padding: 14px 18px !important;
+        font-size: 13px !important;
+        padding: 12px 16px !important;
         transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
         box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4) !important;
         width: 100% !important;
-        text-align: left !important;
     }
     div[data-testid="stButton"] > button:hover {
-        transform: translateY(-3px) !important;
+        transform: translateY(-2px) !important;
         border-color: #34d399 !important;
-        box-shadow: 0 0 25px rgba(16, 185, 129, 0.45) !important;
+        box-shadow: 0 0 22px rgba(16, 185, 129, 0.4) !important;
         color: #ffffff !important;
-        background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(15, 23, 42, 0.95)) !important;
     }
 
-    /* --- CHAT MESSAGES WITH NEON EDGES --- */
+    /* Chat Messages */
     .stChatMessage {
         background: rgba(11, 19, 28, 0.75) !important;
         backdrop-filter: blur(14px) !important;
@@ -163,32 +161,27 @@ st.markdown("""
         padding: 14px 18px !important;
         margin-bottom: 12px !important;
         word-break: break-word;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3) !important;
     }
     [data-testid="stChatMessageAssistant"] {
         border-left: 3px solid #10b981 !important;
-        border-top: 1px solid rgba(16, 185, 129, 0.3) !important;
         background: rgba(6, 78, 59, 0.18) !important;
-        box-shadow: 0 0 25px rgba(16, 185, 129, 0.12) !important;
     }
     [data-testid="stChatMessageUser"] {
         border-right: 3px solid #06b6d4 !important;
         background: rgba(8, 28, 44, 0.35) !important;
     }
 
-    /* --- GLOWING INPUT BAR --- */
+    /* Glowing Input */
     .stChatInputContainer {
         border-radius: 16px !important;
         border: 1px solid rgba(52, 211, 153, 0.3) !important;
         background: rgba(8, 14, 20, 0.9) !important;
-        box-shadow: 0 0 20px rgba(0, 0, 0, 0.6) !important;
     }
     .stChatInputContainer:focus-within {
         border-color: #10b981 !important;
         box-shadow: 0 0 20px rgba(16, 185, 129, 0.35) !important;
     }
 
-    /* --- CLEAN SIDEBAR --- */
     section[data-testid="stSidebar"] {
         background-color: #04080c !important;
         border-right: 1px solid rgba(52, 211, 153, 0.15) !important;
@@ -197,21 +190,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==============================================================================
-# 🧠 3. SYSTEM PROMPT & PEDAGOGICAL BOUNDARIES
-# ==============================================================================
-SYSTEM_PROMPT = """You are Clover, an all-in-one student life consultant and a close, trusted friend. 
-You act like a supportive, brilliant senior schoolmate or study buddy who is always in the student's corner. 
-You aren't a corporate AI, a strict teacher, or a boring encyclopedia—you’re a chill peer who gives real, practical advice with zero judgment.
-
-- Tone: Casual, conversational, warm, and encouraging. Use natural phrasing, everyday language, and a friendly vibe.
-- Structure: Keep responses punchy, scannable, and easy to read. Use clean bullet points and short paragraphs.
-- Empathy First: Always validate feelings first before jumping into study strategy.
-- Never Do the Work For Them: Guide them through concepts, do not write complete homework sets.
-- Strict: Never give medical or clinical advice.
-"""
-
-# ==============================================================================
-# 💾 4. PERSISTENT STORAGE & MODEL RESOLUTION
+# 💾 3. STORAGE & MODEL AUTO-DETECTION
 # ==============================================================================
 BASE = Path(__file__).parent
 HISTORY_DIR = BASE / "students"
@@ -220,8 +199,8 @@ try:
 except Exception:
     pass
 
-def load_history(student_slug):
-    path = HISTORY_DIR / f"{student_slug}.json"
+def load_history(slug):
+    path = HISTORY_DIR / f"{slug}.json"
     if path.exists():
         try:
             return json.loads(path.read_text(encoding="utf-8"))
@@ -229,9 +208,9 @@ def load_history(student_slug):
             return []
     return []
 
-def save_history(student_slug, history):
+def save_history(slug, history):
     try:
-        path = HISTORY_DIR / f"{student_slug}.json"
+        path = HISTORY_DIR / f"{slug}.json"
         path.write_text(json.dumps(history, indent=2), encoding="utf-8")
     except Exception:
         pass
@@ -239,82 +218,124 @@ def save_history(student_slug, history):
 @st.cache_resource
 def get_groq_model(_client):
     try:
-        raw_models = _client.models.list().data
-        chat_models = [
-            m.id for m in raw_models 
+        raw = _client.models.list().data
+        chats = [
+            m.id for m in raw 
             if not any(skip in m.id.lower() for skip in ["whisper", "guard", "embed", "distil", "vision"])
         ]
-        priority_list = [
-            "llama-3.3-70b-versatile",
-            "llama-3.1-8b-instant",
-            "llama3-70b-8192",
-            "mixtral-8x7b-32768",
-            "gemma2-9b-it"
-        ]
-        for pref in priority_list:
-            if pref in chat_models:
-                return pref
-        for m in chat_models:
+        priority = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "llama3-70b-8192", "mixtral-8x7b-32768", "gemma2-9b-it"]
+        for p in priority:
+            if p in chats:
+                return p
+        for m in chats:
             if "llama" in m or "qwen" in m or "gpt" in m:
                 return m
-        return chat_models[0] if chat_models else "llama-3.3-70b-versatile"
+        return chats[0] if chats else "llama-3.3-70b-versatile"
     except Exception:
         return "llama-3.3-70b-versatile"
 
 # ==============================================================================
-# ⚙️ 5. SIDEBAR (PROFILE & JUDGE SPECS)
+# ⚙️ 4. SIDEBAR: AGENT STUDIO & CUSTOMIZATION ENGINE
 # ==============================================================================
 with st.sidebar:
-    st.markdown("### 🍀 **CLOVER // SYSTEM**")
-    st.caption("Neural Academic Architecture v2.4")
+    st.markdown("### 🛠️ **AGENT STUDIO**")
+    st.caption("Dynamic AI Customization Engine")
 
-    sidebar_key = st.text_input(
-        "Groq API Key (Override):",
-        type="password",
-        value="",
-        placeholder="gsk_...",
-        help="Pre-configured by default. Paste here to override."
+    # Persona Archetype Selector
+    persona_mode = st.selectbox(
+        "Select AI Archetype:",
+        [
+            "🍀 Clover (Chill Peer / Anti-Burnout)",
+            "⚡ Titan (Discipline & Drill Coach)",
+            "🌙 Luna (Calm & Mindfulness Guide)",
+            "⚙️ Custom Agent Studio"
+        ]
     )
 
-    st.divider()
-    st.markdown("#### 👤 **Active Student Profile**")
-    student_name = st.text_input("Profile ID:", value="Hriday Bedi")
-    clean_name = student_name.strip().lower().replace(" ", "_") or "guest"
+    # Dynamic Persona Configuration
+    if "Clover" in persona_mode:
+        ai_name = "Clover"
+        ai_avatar = "🍀"
+        ai_tagline = "Your chill senior schoolmate and anti-burnout study buddy."
+        custom_instructions = "You are Clover, a casual, friendly, empathetic senior student. Use warm phrasing, validate emotions first, and make realistic 3-day recovery study plans."
+    elif "Titan" in persona_mode:
+        ai_name = "Titan"
+        ai_avatar = "⚡"
+        ai_tagline = "High-accountability, zero-excuses exam drill coach."
+        custom_instructions = "You are Titan, an intense, direct, laser-focused academic drill coach for competitive exams. Push back against procrastination, demand rigorous Pomodoro sprints, and give sharp, bulletproof schedules."
+    elif "Luna" in persona_mode:
+        ai_name = "Luna"
+        ai_avatar = "🌙"
+        ai_tagline = "Calming mindfulness guide for acute test anxiety."
+        custom_instructions = "You are Luna, a gentle, soothing, mindfulness-focused study companion. Help students take deep breaths, un-clench their jaws, ground their focus, and approach topics with zero panic."
+    else:
+        st.markdown("##### 🎨 **Design Your Custom Agent:**")
+        ai_name = st.text_input("Agent Codename:", value="Athena").strip() or "CustomAI"
+        raw_avatar = st.text_input("Agent Avatar Emoji:", value="🦉").strip()
+        # Fallback if invalid or multiple characters are entered
+        ai_avatar = raw_avatar if (raw_avatar and len(raw_avatar) <= 2) else "🤖"
+        ai_tagline = st.text_input("Agent Purpose:", value="Strategic logic mentor for advanced problems.").strip()
+        custom_instructions = st.text_area(
+            "Persona & Tone Directives:",
+            value="You are Athena, a sharp, intellectual mentor who explains tough science topics using historical examples and clear logical deductions."
+        )
 
-    if st.button("🗑️ Purge Context Cache", use_container_width=True):
+    st.divider()
+    st.markdown("#### 👤 **Student Workspace**")
+    student_name = st.text_input("Active Profile ID:", value="Hriday Bedi")
+    
+    # Safe filename sanitization for Windows/Linux
+    raw_slug = f"{student_name.strip().lower()}_{ai_name.lower()}"
+    clean_name = re.sub(r'[^a-zA-Z0-9_]', '_', raw_slug)
+
+    if st.button("🗑️ Reset Chat History", use_container_width=True):
         save_history(clean_name, [])
         st.session_state.messages = []
         st.rerun()
 
     st.divider()
-    st.markdown("#### ⚙️ **Hardware Telemetry**")
+    sidebar_key = st.text_input("Groq API Key (Override):", type="password", value="", placeholder="gsk_...")
+    
     st.markdown("""
-    - **Inference Unit:** Groq LPU™ Silicon
-    - **Latency Index:** ~0.22s First-Token
-    - **Context Management:** Dynamic Sliding Window
-    - **Persistence:** Isolated JSON Data Store
-    - **Guardrails:** Pedagogical Anti-Cheat Active
-    """)
+    <div style="font-size: 11px; color: #94a3b8; font-family: 'JetBrains Mono', monospace;">
+    ENGINE: Groq LPU™ Silicon<br>
+    PERSISTENCE: Isolated JSON<br>
+    GUARDRAILS: Anti-Cheat Active
+    </div>
+    """, unsafe_allow_html=True)
 
-# Resolve API Key
+# Build Master System Prompt with Permanent Guardrails
+SYSTEM_PROMPT = f"""You are {ai_name}, an AI student academic companion.
+{custom_instructions}
+
+MANDATORY PEDAGOGICAL GUARDRAILS (NEVER VIOLATE):
+1. Never Do The Work For Them: Do not write essays, complete assignments, or solve test questions directly. Guide their thought process, give outlines, and explain concepts.
+2. No Medical/Clinical Advice: Keep stress advice educational and practical.
+3. Keep responses punchy, scannable, and formatted with clean bullet points.
+"""
+
 ACTIVE_API_KEY = sidebar_key.strip() or BUILTIN_GROQ_KEY.strip() or os.environ.get("GROQ_API_KEY", "").strip()
 
-# Initialize session history
-if "messages" not in st.session_state or st.session_state.get("current_student") != clean_name:
-    st.session_state.current_student = clean_name
+# Initialize session history for this specific student + agent pair
+if "messages" not in st.session_state or st.session_state.get("current_profile") != clean_name:
+    st.session_state.current_profile = clean_name
     st.session_state.messages = load_history(clean_name)
 
+# Safe HTML sanitization for dynamic cards
+safe_ai_name = ai_name.replace("<", "").replace(">", "")
+safe_ai_tagline = ai_tagline.replace("<", "").replace(">", "")
+
 # ==============================================================================
-# 🛰️ 6. TOP TELEMETRY HUD BAR
+# 🛰️ 5. TELEMETRY HUD BAR
 # ==============================================================================
-st.markdown("""
+st.markdown(f"""
 <div class="hud-bar">
     <div class="hud-item">
         <span class="pulse-dot"></span>
-        <span>SYS: <span class="hud-green">ONLINE</span></span>
+        <span>AGENT: <span class="hud-green">{safe_ai_name.upper()}</span></span>
     </div>
     <div class="hud-item">
-        <span>INFERENCE: <span class="hud-green">GROQ LPU™</span></span>
+        <span>CORE: <span class="hud-green">GROQ LPU™</span></span>
     </div>
     <div class="hud-item">
         <span>LATENCY: <span class="hud-green">&lt;0.3s</span></span>
@@ -323,65 +344,61 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==============================================================================
-# 🚀 7. HERO INTERFACE & NEON STARTER CARDS
+# 🚀 6. DYNAMIC HERO CARD & STARTER PROMPTS
 # ==============================================================================
 starter_prompt = None
 
 if len(st.session_state.messages) == 0:
-    st.markdown("""
+    st.markdown(f"""
     <div class="hero-container">
-        <div class="hero-title">Meet Clover.</div>
-        <div class="hero-subtitle">
-            An advanced AI academic strategist and student life consultant engineered to crush exam burnout, optimize study sprints, and build unbreakable GPA systems.
-        </div>
+        <div class="hero-title">Meet {safe_ai_name}.</div>
+        <div class="hero-subtitle">{safe_ai_tagline}</div>
         <div class="metric-row">
             <span class="metric-chip">⚡ LPU ACCELERATED</span>
-            <span class="metric-chip">🧠 MULTI-TURN PERSISTENCE</span>
+            <span class="metric-chip">🧠 {safe_ai_name.upper()} PERSONA ACTIVE</span>
             <span class="metric-chip">🛡️ ANTI-CHEAT GUARDRAILS</span>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    st.markdown("<p style='font-size: 12px; font-weight: 700; color: #34d399; font-family: \"JetBrains Mono\", monospace; text-transform: uppercase; letter-spacing: 1px;'>// Quick Launch Directives</p>", unsafe_allow_html=True)
+    st.markdown("<p style='font-size: 11px; font-weight: 700; color: #34d399; font-family: \"JetBrains Mono\", monospace; text-transform: uppercase;'>// Quick Directives</p>", unsafe_allow_html=True)
     
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("🧪 Emergency Exam Triage\n(3-Day Plan)", use_container_width=True):
+        if st.button("🧪 3-Day Emergency Exam Triage", use_container_width=True):
             starter_prompt = "I have a tough exam in 3 days and feel unprepared. Walk me through an emergency triage study plan."
-        if st.button("🧠 Deep Focus Routine\n(Pomodoro Architecture)", use_container_width=True):
+        if st.button("🧠 Deep Focus Pomodoro Setup", use_container_width=True):
             starter_prompt = "Design a high-retention 3-hour study block routine using Pomodoro that avoids mental fatigue."
     with col2:
-        if st.button("😰 Calm Test Anxiety\n(2-Minute Protocol)", use_container_width=True):
+        if st.button("😰 Calm Test Anxiety Protocol", use_container_width=True):
             starter_prompt = "I'm experiencing intense test stress right now. Can we do a fast 2-minute calm-down protocol?"
-        if st.button("⚡ High-Fuel Study Nutrition\n(Zero Brain-Fog)", use_container_width=True):
+        if st.button("⚡ High-Fuel Study Nutrition", use_container_width=True):
             starter_prompt = "What quick snacks and hydration strategy will give me sustained focus without brain fog or sugar crashes?"
 
 # ==============================================================================
-# 💬 8. RENDER CHAT HISTORY
+# 💬 7. CHAT HISTORY DISPLAY
 # ==============================================================================
 for msg in st.session_state.messages:
     role = msg.get("role")
-    avatar = "🍀" if role == "assistant" else "👤"
+    avatar = ai_avatar if role == "assistant" else "👤"
     with st.chat_message(role, avatar=avatar):
         st.markdown(msg.get("content", ""))
 
 # ==============================================================================
-# ⚡ 9. CHAT INPUT & LIVE STREAMING PIPELINE (HARDENED)
+# ⚡ 8. CHAT INPUT & STREAMING PIPELINE
 # ==============================================================================
-chat_input = st.chat_input("Input directives (e.g., 'Make a chemistry review schedule')...")
+chat_input = st.chat_input(f"Message {safe_ai_name}...")
 user_prompt = chat_input or starter_prompt
 
 if user_prompt:
     if not ACTIVE_API_KEY or "PASTE_YOUR_GROQ_KEY_HERE" in ACTIVE_API_KEY:
-        st.warning("👈 Please enter your Groq API Key in line 14 or the sidebar to unlock Clover.")
+        st.warning(f"👈 Please paste your Groq API Key in line 15 or the sidebar to unlock {safe_ai_name}.")
     else:
-        # Display User Input
         st.session_state.messages.append({"role": "user", "content": user_prompt})
         with st.chat_message("user", avatar="👤"):
             st.markdown(user_prompt)
 
-        # Stream Assistant Response
-        with st.chat_message("assistant", avatar="🍀"):
+        with st.chat_message("assistant", avatar=ai_avatar):
             try:
                 client = Groq(api_key=ACTIVE_API_KEY)
                 active_model = get_groq_model(client)
@@ -395,7 +412,6 @@ if user_prompt:
                     stream=True,
                 )
 
-                # Hardened against empty final chunks or unexpected network packets
                 def stream_chunks():
                     for chunk in stream:
                         if chunk.choices and len(chunk.choices) > 0:
@@ -405,14 +421,11 @@ if user_prompt:
                                 if content:
                                     yield content
 
-                # Live Word-by-Word Typing
                 response_text = st.write_stream(stream_chunks())
 
-                # Commit to Storage
                 st.session_state.messages.append({"role": "assistant", "content": response_text})
                 save_history(clean_name, st.session_state.messages)
 
-                # Clean transition from hero card to conversation
                 if len(st.session_state.messages) == 2:
                     st.rerun()
 
