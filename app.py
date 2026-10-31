@@ -668,7 +668,10 @@ raw_css = """
     .stChatMessage p { margin-bottom: .6rem; }
     /* chat bar and page share the same width so they line up */
     [data-testid="stMainBlockContainer"], .block-container, [data-testid="stBottomBlockContainer"] { max-width: 760px !important; }
-    .block-container { padding-top: 1.6rem !important; }
+    /* keep the status bar clear of Streamlit's fixed top header (this was hiding it) */
+    [data-testid="stMainBlockContainer"], .block-container { padding-top: 4.5rem !important; }
+    [data-testid="stHeader"] { background: rgba(3,7,8,0.65) !important; backdrop-filter: blur(10px); }
+    .hud-bar { position: relative; z-index: 1; }
     /* mode switch wraps cleanly on small screens */
     [data-testid="stRadio"] [role="radiogroup"] { gap: .4rem .9rem; flex-wrap: wrap; }
     /* the invisible auto-scroll helper must not leave a blank gap */
@@ -1117,4 +1120,3 @@ with export_slot.container():
         st.download_button("📥 Export Session (.txt)", export_text, file_name=f"{clean_name}_study_roadmap.txt",
                            mime="text/plain", use_container_width=True)
     st.button("🗑️ Reset Chat History", use_container_width=True, on_click=reset_chat, args=(clean_name,))
-
