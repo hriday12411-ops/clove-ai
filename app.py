@@ -312,17 +312,30 @@ def _lib_files(folder, subject=None):
     return out
 
 
-def retrieve(query, subject=None, folder=None, k=4, max_chars=3500):
+STOP = set("""about above after again also because been before being between both could does doing done
+down during each from give have having here into just like make more most much need only other over same
+should some such than that their them then there these they this those through under until very want what
+when where which while will with would your explain simply chapter class ncert important things exams exam
+question questions answer answers tell please help quick revision sheet page quiz wait next""".split())
+
+
+def retrieve(query, subject=None, folder=None, k=4, max_chars=3500, boost=""):
     """Best-matching passages from your PDFs (simple keyword scoring)."""
     folder = folder or LIB_DIR
-    words = {w for w in re.findall(r"[a-zA-Z]{4,}", query.lower())}
-    if not words:
+    weights = {}
+    for w in re.findall(r"[a-zA-Z]{4,}", query.lower()):
+        if w not in STOP:
+            weights[w] = 1
+    for w in re.findall(r"[a-zA-Z]{4,}", (boost or "").lower()):
+        if w not in STOP:
+            weights[w] = 3
+    if not weights:
         return ""
     scored = []
     for f in _lib_files(folder, subject):
         for pno, text in _pdf_chunks(str(f), f.stat().st_mtime):
             low = text.lower()
-            score = sum(low.count(w) for w in words)
+            score = sum(low.count(w) * wt for w, wt in weights.items())
             if score:
                 scored.append((score, f.name, pno, text))
     scored.sort(reverse=True)
@@ -335,10 +348,13 @@ def retrieve(query, subject=None, folder=None, k=4, max_chars=3500):
     return "\n\n".join(parts)
 
 
-def library_context(query, subject=None):
-    """Extra system-prompt text so answers come from the textbooks / PYQ style."""
-    book = retrieve(query, subject, LIB_DIR)
-    pyq = retrieve(query, subject, PYQ_DIR, k=2, max_chars=1500)
+def library_context(query, focus=None):
+    """Extra system-prompt text so answers come from the textbooks / PYQ style.
+    focus = {"subject":..., "chapter":...} when the message came from a Library button."""
+    subject = focus.get("subject") if focus else None
+    boost = focus.get("chapter") if focus else ""
+    book = retrieve(query, subject, LIB_DIR, boost=boost)
+    pyq = retrieve(query, subject, PYQ_DIR, k=2, max_chars=1500, boost=boost)
     out = ""
     if book:
         out += ("\n\nTEXTBOOK EXCERPTS (NCERT Class 11). Treat these as the source of truth and mention "
@@ -348,8 +364,9 @@ def library_context(query, subject=None):
     return out
 
 
-def go_chat_with(prompt):
+def go_chat_with(prompt, subject=None, chapter=None):
     ss.queued_prompt = prompt
+    ss.lib_focus = {"prompt": prompt, "subject": subject, "chapter": chapter}
     ss["mode"] = "💬 Chat"
 
 
@@ -368,26 +385,29 @@ def render_library():
     c1, c2 = st.columns(2)
     with c1:
         st.button("📖 Explain chapter", key="lib_b1", use_container_width=True, on_click=go_chat_with, args=(
-            f"Explain {ctx} simply: key ideas, formulas/definitions, and the 5 most important things for exams.",))
+            f"Explain {ctx} simply: key ideas, formulas/definitions, and the 5 most important things for exams.",
+            subject, chapter))
         st.button("🧠 Quick revision", key="lib_b2", use_container_width=True, on_click=go_chat_with, args=(
-            f"Give me a 1-page quick revision sheet for {ctx}.",))
+            f"Give me a 1-page quick revision sheet for {ctx}.", subject, chapter))
     with c2:
         st.button("📝 PYQ-style practice", key="lib_b3", use_container_width=True, on_click=go_chat_with, args=(
             f"Give me 8 exam-style questions for {ctx} in the CBSE school-exam pattern "
             "(3 MCQ x1 mark, 3 short x2-3 marks, 2 long x5 marks). Do not give answers yet; "
-            "I'll attempt them and you check.",))
+            "I'll attempt them and you check.", subject, chapter))
         st.button("✅ Test me", key="lib_b4", use_container_width=True, on_click=go_chat_with, args=(
-            f"Quiz me one question at a time on {ctx}. Wait for my answer before the next.",))
+            f"Quiz me one question at a time on {ctx}. Wait for my answer before the next.", subject, chapter))
 
     with st.expander("➕ Add textbook / PYQ PDFs"):
         kind = st.radio("Type", ["Textbook", "PYQ / Sample paper"], horizontal=True, key="lib_kind")
-        ups = st.file_uploader("PDFs", type=["pdf"], accept_multiple_files=True, key="lib_up")
+        ups = st.file_uploader("PDFs", type=["pdf"], accept_multiple_files=True,
+                               key=f"lib_up_{ss.get('lib_up_n', 0)}")
         if ups and st.button("Save to library", use_container_width=True, key="lib_save"):
             dest = (LIB_DIR if kind == "Textbook" else PYQ_DIR) / subject.lower()
             dest.mkdir(parents=True, exist_ok=True)
             for u in ups:
                 (dest / Path(u.name).name).write_bytes(u.getvalue())
-            st.success(f"Saved {len(ups)} file(s). Ask away.")
+            st.toast(f"Saved {len(ups)} file(s) to {subject}", icon="📚")
+            ss.lib_up_n = ss.get("lib_up_n", 0) + 1
             st.rerun()
 
 
@@ -551,7 +571,7 @@ raw_css = """
     }
 
     .hud-bar {
-        position: relative; overflow: hidden; display: flex; justify-content: space-between; align-items: center;
+        position: relative; overflow: hidden; display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap;
         background: rgba(15,23,42,0.7); border: 1px solid __PRIMARY__; border-radius: 10px;
         padding: 5px 14px; margin-bottom: 14px; font-family: 'JetBrains Mono', monospace; font-size: 10.5px;
         color: #94a3b8; box-shadow: 0 0 14px __AMBIENT1__;
@@ -640,16 +660,21 @@ raw_css = """
     section[data-testid="stSidebar"] { background-color: #04080c !important; border-right: 1px solid __PRIMARY__ !important; }
 
     /* ---------- SMOOTHNESS LAYER ---------- */
-    html { scroll-behavior: smooth; }
     * { -webkit-font-smoothing: antialiased; }
-    .stApp * {
-        transition: background-color .25s ease, border-color .25s ease, color .25s ease,
-                    box-shadow .25s ease, transform .2s ease, opacity .25s ease;
+    div[data-testid="stButton"] > button, div[data-testid="stDownloadButton"] > button {
+        transition: background-color .2s ease, border-color .2s ease, color .2s ease, transform .15s ease;
     }
-    @keyframes softIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-    .stChatMessage { animation: softIn .35s cubic-bezier(.2,.7,.2,1) both; line-height: 1.65; }
+    .stChatMessage { line-height: 1.65; }
     .stChatMessage p { margin-bottom: .6rem; }
-    .block-container { max-width: 760px !important; padding-top: 1.6rem !important; }
+    /* chat bar and page share the same width so they line up */
+    [data-testid="stMainBlockContainer"], .block-container, [data-testid="stBottomBlockContainer"] { max-width: 760px !important; }
+    .block-container { padding-top: 1.6rem !important; }
+    /* mode switch wraps cleanly on small screens */
+    [data-testid="stRadio"] [role="radiogroup"] { gap: .4rem .9rem; flex-wrap: wrap; }
+    /* the invisible auto-scroll helper must not leave a blank gap */
+    div[data-testid="stElementContainer"]:has(iframe[height="0"]),
+    .element-container:has(iframe[height="0"]) { position: absolute !important; height: 0 !important; margin: 0 !important; overflow: hidden !important; }
+    @media (max-width: 520px) { .hud-bar .hud-item:last-child { display: none; } }
     div[data-testid="stButton"] > button:hover { transform: translateY(-1px); }
     div[data-testid="stButton"] > button:active { transform: scale(.98); }
     ::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -658,7 +683,7 @@ raw_css = """
 
     @media (prefers-reduced-motion: reduce) {
         [data-testid="stChatInput"], .hud-bar::after, .hero-container { animation: none !important; }
-        .stChatMessage, .stApp * { animation: none !important; transition: none !important; }
+        div[data-testid="stButton"] > button { transition: none !important; }
     }
 </style>
 """
@@ -1032,7 +1057,11 @@ if mode == "💬 Chat":
                                        "Use this live data to answer the user's weather question accurately!")
 
                 # NCERT textbook + PYQ passages from the Library folders
-                dynamic_system += library_context(last_q, ss.get("lib_subject"))
+                focus = ss.get("lib_focus")
+                if focus and focus.get("prompt") != last_q:
+                    focus = None
+                with st.spinner("Checking your textbooks..."):
+                    dynamic_system += library_context(last_q, focus)
 
                 clean_history = [
                     {"role": m["role"], "content": m["content"]}
@@ -1088,3 +1117,4 @@ with export_slot.container():
         st.download_button("📥 Export Session (.txt)", export_text, file_name=f"{clean_name}_study_roadmap.txt",
                            mime="text/plain", use_container_width=True)
     st.button("🗑️ Reset Chat History", use_container_width=True, on_click=reset_chat, args=(clean_name,))
+
