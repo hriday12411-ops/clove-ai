@@ -16,8 +16,8 @@ from groq import Groq
 # ==============================================================================
 # 🔑 1. API CONFIGURATION
 # ==============================================================================
-# Paste your Groq API key (starts with gsk_) between the quotes,
-# or put GROQ_API_KEY in .streamlit/secrets.toml (safer for GitHub).
+# Put GROQ_API_KEY in .streamlit/secrets.toml (safe for GitHub), or paste it in the sidebar.
+# NEVER paste a real key here if the code goes online. The old key was exposed: revoke it.
 BUILTIN_GROQ_KEY = "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"
 
 st.set_page_config(
@@ -224,6 +224,174 @@ def unpack_chat_value(value):
 
 
 # ==============================================================================
+# 📚 2B. NCERT CLASS 11 LIBRARY (textbooks + previous-year papers)
+# ==============================================================================
+# Put the free NCERT PDFs (ncert.nic.in) in  library/<subject>/  and past papers /
+# sample papers in  pyq/<subject>/ . You can also upload them from the Library screen.
+LIB_DIR = BASE / "library"
+PYQ_DIR = BASE / "pyq"
+
+CHAPTERS = {
+    "Physics": [
+        "Units and Measurements", "Motion in a Straight Line", "Motion in a Plane", "Laws of Motion",
+        "Work, Energy and Power", "System of Particles and Rotational Motion", "Gravitation",
+        "Mechanical Properties of Solids", "Mechanical Properties of Fluids",
+        "Thermal Properties of Matter", "Thermodynamics", "Kinetic Theory", "Oscillations", "Waves",
+    ],
+    "Chemistry": [
+        "Some Basic Concepts of Chemistry", "Structure of Atom",
+        "Classification of Elements and Periodicity in Properties",
+        "Chemical Bonding and Molecular Structure", "Thermodynamics", "Equilibrium", "Redox Reactions",
+        "Organic Chemistry: Some Basic Principles and Techniques", "Hydrocarbons",
+    ],
+    "Biology": [
+        "The Living World", "Biological Classification", "Plant Kingdom", "Animal Kingdom",
+        "Morphology of Flowering Plants", "Anatomy of Flowering Plants",
+        "Structural Organisation in Animals", "Cell: The Unit of Life", "Biomolecules",
+        "Cell Cycle and Cell Division", "Photosynthesis in Higher Plants", "Respiration in Plants",
+        "Plant Growth and Development", "Breathing and Exchange of Gases",
+        "Body Fluids and Circulation", "Excretory Products and their Elimination",
+        "Locomotion and Movement", "Neural Control and Coordination",
+        "Chemical Coordination and Integration",
+    ],
+    "Maths": [
+        "Sets", "Relations and Functions", "Trigonometric Functions",
+        "Complex Numbers and Quadratic Equations", "Linear Inequalities",
+        "Permutations and Combinations", "Binomial Theorem", "Sequences and Series", "Straight Lines",
+        "Conic Sections", "Introduction to Three Dimensional Geometry", "Limits and Derivatives",
+        "Statistics", "Probability",
+    ],
+    "English": [
+        "Hornbill - The Portrait of a Lady", "Hornbill - We're Not Afraid to Die",
+        "Hornbill - Discovering Tut: the Saga Continues", "Hornbill - Landscape of the Soul",
+        "Hornbill - The Ailing Planet", "Hornbill - The Browning Version", "Hornbill - The Adventure",
+        "Hornbill - Silk Road",
+        "Hornbill Poems - A Photograph / The Laburnum Top / The Voice of the Rain / Childhood / Father to Son",
+        "Snapshots - The Summer of the Beautiful White Horse", "Snapshots - The Address",
+        "Snapshots - Ranga's Marriage", "Snapshots - Albert Einstein at School",
+        "Snapshots - Mother's Day", "Snapshots - The Ghat of the Only World", "Snapshots - Birth",
+        "Snapshots - The Tale of Melon City",
+    ],
+}
+
+for _folder in (LIB_DIR, PYQ_DIR):
+    for _s in CHAPTERS:
+        try:
+            (_folder / _s.lower()).mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
+
+
+@st.cache_data(show_spinner=False)
+def _pdf_chunks(path_str, mtime):
+    try:
+        from pypdf import PdfReader
+        reader = PdfReader(path_str)
+    except Exception:
+        return []
+    chunks = []
+    for pno, page in enumerate(reader.pages, 1):
+        try:
+            text = re.sub(r"\s+", " ", page.extract_text() or "").strip()
+        except Exception:
+            continue
+        for i in range(0, len(text), 1100):
+            piece = text[i:i + 1200]
+            if len(piece) > 150:
+                chunks.append((pno, piece))
+    return chunks
+
+
+def _lib_files(folder, subject=None):
+    subs = [subject.lower()] if subject else [s.lower() for s in CHAPTERS]
+    out = []
+    for s in subs:
+        d = folder / s
+        if d.exists():
+            out += sorted(d.glob("*.pdf"))
+    return out
+
+
+def retrieve(query, subject=None, folder=None, k=4, max_chars=3500):
+    """Best-matching passages from your PDFs (simple keyword scoring)."""
+    folder = folder or LIB_DIR
+    words = {w for w in re.findall(r"[a-zA-Z]{4,}", query.lower())}
+    if not words:
+        return ""
+    scored = []
+    for f in _lib_files(folder, subject):
+        for pno, text in _pdf_chunks(str(f), f.stat().st_mtime):
+            low = text.lower()
+            score = sum(low.count(w) for w in words)
+            if score:
+                scored.append((score, f.name, pno, text))
+    scored.sort(reverse=True)
+    parts, total = [], 0
+    for _, name, pno, text in scored[:k]:
+        if total + len(text) > max_chars:
+            break
+        parts.append(f"[{name} p.{pno}] {text}")
+        total += len(text)
+    return "\n\n".join(parts)
+
+
+def library_context(query, subject=None):
+    """Extra system-prompt text so answers come from the textbooks / PYQ style."""
+    book = retrieve(query, subject, LIB_DIR)
+    pyq = retrieve(query, subject, PYQ_DIR, k=2, max_chars=1500)
+    out = ""
+    if book:
+        out += ("\n\nTEXTBOOK EXCERPTS (NCERT Class 11). Treat these as the source of truth and mention "
+                "which book/page you used:\n" + book)
+    if pyq:
+        out += "\n\nPREVIOUS-YEAR QUESTION STYLE REFERENCE:\n" + pyq
+    return out
+
+
+def go_chat_with(prompt):
+    ss.queued_prompt = prompt
+    ss["mode"] = "💬 Chat"
+
+
+def render_library():
+    st.markdown('<div class="studio-head">// NCERT CLASS 11 · LIBRARY</div>', unsafe_allow_html=True)
+    subject = st.selectbox("Subject", list(CHAPTERS), key="lib_subject")
+    chapter = st.selectbox("Chapter", CHAPTERS[subject], key="lib_chapter")
+
+    n_books = len(_lib_files(LIB_DIR, subject))
+    n_pyq = len(_lib_files(PYQ_DIR, subject))
+    st.caption(f"📚 {n_books} textbook PDF(s) · 📝 {n_pyq} PYQ PDF(s) loaded for {subject}")
+    if not n_books:
+        st.info(f"Add the NCERT {subject} PDFs below (free at ncert.nic.in) so answers use the real book text.")
+
+    ctx = f"NCERT Class 11 {subject}, chapter '{chapter}'"
+    c1, c2 = st.columns(2)
+    with c1:
+        st.button("📖 Explain chapter", key="lib_b1", use_container_width=True, on_click=go_chat_with, args=(
+            f"Explain {ctx} simply: key ideas, formulas/definitions, and the 5 most important things for exams.",))
+        st.button("🧠 Quick revision", key="lib_b2", use_container_width=True, on_click=go_chat_with, args=(
+            f"Give me a 1-page quick revision sheet for {ctx}.",))
+    with c2:
+        st.button("📝 PYQ-style practice", key="lib_b3", use_container_width=True, on_click=go_chat_with, args=(
+            f"Give me 8 exam-style questions for {ctx} in the CBSE school-exam pattern "
+            "(3 MCQ x1 mark, 3 short x2-3 marks, 2 long x5 marks). Do not give answers yet; "
+            "I'll attempt them and you check.",))
+        st.button("✅ Test me", key="lib_b4", use_container_width=True, on_click=go_chat_with, args=(
+            f"Quiz me one question at a time on {ctx}. Wait for my answer before the next.",))
+
+    with st.expander("➕ Add textbook / PYQ PDFs"):
+        kind = st.radio("Type", ["Textbook", "PYQ / Sample paper"], horizontal=True, key="lib_kind")
+        ups = st.file_uploader("PDFs", type=["pdf"], accept_multiple_files=True, key="lib_up")
+        if ups and st.button("Save to library", use_container_width=True, key="lib_save"):
+            dest = (LIB_DIR if kind == "Textbook" else PYQ_DIR) / subject.lower()
+            dest.mkdir(parents=True, exist_ok=True)
+            for u in ups:
+                (dest / Path(u.name).name).write_bytes(u.getvalue())
+            st.success(f"Saved {len(ups)} file(s). Ask away.")
+            st.rerun()
+
+
+# ==============================================================================
 # ⚙️ 3. SIDEBAR (persona, exam, key)
 # ==============================================================================
 with st.sidebar:
@@ -334,6 +502,7 @@ with st.sidebar:
         <div>INFERENCE: <span style="color:{theme['accent']};font-weight:700;">GROQ LPU™ SILICON</span></div>
         <div>WHISPER CORE: <span style="color:#f1f5f9;">v3 LARGE AUDIO</span></div>
         <div>WEATHER HOOK: <span style="color:#f1f5f9;">LIVE SATELLITE</span></div>
+        <div>LIBRARY: <span style="color:#f1f5f9;">NCERT CLASS 11</span></div>
         <div>GUARDRAILS: <span style="color:{theme['primary']};font-weight:700;">ANTI-CHEAT ACTIVE</span></div>
     </div>
     """, unsafe_allow_html=True)
@@ -343,8 +512,6 @@ with st.sidebar:
 
 ACTIVE_API_KEY = (sidebar_key.strip() or BUILTIN_GROQ_KEY.strip()
                   or get_secret_key() or os.environ.get("GROQ_API_KEY", "").strip())
-if "PASTE_YOUR_GROQ_KEY_HERE" in ACTIVE_API_KEY:
-    ACTIVE_API_KEY = get_secret_key() or os.environ.get("GROQ_API_KEY", "").strip()
 KEY_OK = bool(ACTIVE_API_KEY)
 
 # ==============================================================================
@@ -392,7 +559,7 @@ raw_css = """
     .hud-bar::after {
         content: ''; position: absolute; top: 0; left: -100%; width: 40%; height: 100%;
         background: linear-gradient(90deg, transparent, __PRIMARY__, transparent);
-        opacity: 0.45; animation: laserScan 3.5s infinite linear; pointer-events: none;
+        opacity: 0.25; animation: laserScan 8s infinite linear; pointer-events: none;
     }
     @keyframes laserScan { 0% { left: -100%; } 100% { left: 200%; } }
     .hud-item { display: flex; align-items: center; gap: 6px; z-index: 2; }
@@ -472,8 +639,26 @@ raw_css = """
 
     section[data-testid="stSidebar"] { background-color: #04080c !important; border-right: 1px solid __PRIMARY__ !important; }
 
+    /* ---------- SMOOTHNESS LAYER ---------- */
+    html { scroll-behavior: smooth; }
+    * { -webkit-font-smoothing: antialiased; }
+    .stApp * {
+        transition: background-color .25s ease, border-color .25s ease, color .25s ease,
+                    box-shadow .25s ease, transform .2s ease, opacity .25s ease;
+    }
+    @keyframes softIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+    .stChatMessage { animation: softIn .35s cubic-bezier(.2,.7,.2,1) both; line-height: 1.65; }
+    .stChatMessage p { margin-bottom: .6rem; }
+    .block-container { max-width: 760px !important; padding-top: 1.6rem !important; }
+    div[data-testid="stButton"] > button:hover { transform: translateY(-1px); }
+    div[data-testid="stButton"] > button:active { transform: scale(.98); }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-thumb { background: rgba(148,163,184,.25); border-radius: 8px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(148,163,184,.45); }
+
     @media (prefers-reduced-motion: reduce) {
         [data-testid="stChatInput"], .hud-bar::after, .hero-container { animation: none !important; }
+        .stChatMessage, .stApp * { animation: none !important; transition: none !important; }
     }
 </style>
 """
@@ -504,7 +689,8 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-mode = st.radio("View", ["💬 Chat", "🗺️ Studio"], horizontal=True, label_visibility="collapsed", key="mode")
+mode = st.radio("View", ["💬 Chat", "📚 Library", "🗺️ Studio"], horizontal=True,
+                label_visibility="collapsed", key="mode")
 
 # ==============================================================================
 # 📎 6. INPUT HANDLING (voice + files live inside the chat bar)
@@ -571,7 +757,7 @@ if mode == "💬 Chat":
 
     if user_text.strip():
         if not KEY_OK:
-            st.warning(f"👈 Please paste your Groq API Key in line 16 or the sidebar to unlock {safe_ai_name}.")
+            st.warning(f"👈 Please paste your Groq API Key in the sidebar to unlock {safe_ai_name}.")
         else:
             ss.messages.append({"role": "user", "content": user_text.strip()})
             save_history(clean_name, ss.messages)
@@ -607,6 +793,9 @@ SYSTEM_PROMPT = f"""You are {ai_name}, an intelligent, casual student peer and s
 
 {exam_note}
 {file_injection}
+
+The student is in CBSE Class 11 (subjects: Physics, Chemistry, Biology, Maths, English) following NCERT textbooks.
+When textbook excerpts are provided, base your answer on them and name the book/page.
 
 STRICT CONVERSATION RULES:
 1. ANSWER DIRECTLY: Explain concepts simply and casually. If live weather telemetry is provided in context, share the weather directly and accurately!
@@ -763,6 +952,9 @@ def generate_studio(kind):
         st.error(f"Studio Error: {e}")
 
 
+if mode == "📚 Library":
+    render_library()
+
 if mode == "🗺️ Studio":
     if not KEY_OK:
         st.warning("Add your Groq API key in the sidebar to use Studio.")
@@ -832,10 +1024,15 @@ if mode == "💬 Chat":
                 active_model = get_groq_model(client)
 
                 dynamic_system = SYSTEM_PROMPT
-                weather = get_live_weather(ss.messages[-1]["content"])
+                last_q = ss.messages[-1]["content"]
+
+                weather = get_live_weather(last_q)
                 if weather:
                     dynamic_system += (f"\n\n[REAL-TIME DATA INJECTION]: {weather}. "
                                        "Use this live data to answer the user's weather question accurately!")
+
+                # NCERT textbook + PYQ passages from the Library folders
+                dynamic_system += library_context(last_q, ss.get("lib_subject"))
 
                 clean_history = [
                     {"role": m["role"], "content": m["content"]}
