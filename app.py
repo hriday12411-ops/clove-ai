@@ -17,8 +17,8 @@ from groq import Groq
 # ==============================================================================
 # 🔑 1. API CONFIGURATION
 # ==============================================================================
-# Put GROQ_API_KEY in .streamlit/secrets.toml (safe for GitHub), or paste it in the sidebar.
-# NEVER paste a real key here if the code goes online. The old key was exposed: revoke it.
+# Put GROQ_API_KEY in .streamlit/secrets.toml, or paste it in the sidebar.
+# NEVER hard-code a real key here. (The old key in this file was exposed: revoke it at console.groq.com.)
 BUILTIN_GROQ_KEY = "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"
 
 st.set_page_config(
@@ -40,6 +40,7 @@ ss.setdefault("messages", [])        # messages of the chat that is open right n
 ss.setdefault("chat_id", None)       # None = brand-new chat (saved on the first message)
 ss.setdefault("chat_title", "")
 ss.setdefault("confirm_del", None)   # chat id waiting for delete confirmation
+ss.setdefault("guide", None)         # active guided NCERT question: {"question","subject","style","label"}
 
 TEXT_TYPES = ["txt", "md", "py", "json", "csv", "pdf"]
 MAX_DOC_CHARS = 6000
@@ -147,7 +148,7 @@ def save_chat():
     if not path:
         return
     data = {"id": ss.chat_id, "title": ss.chat_title or "Chat", "avatar": ai_avatar,
-            "updated": time.time(), "messages": ss.messages}
+            "updated": time.time(), "messages": ss.messages, "guide": ss.get("guide")}
     try:
         path.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
     except Exception:
@@ -198,6 +199,7 @@ def new_chat():
     ss.studio = {}
     ss.studio_active = None
     ss.confirm_del = None
+    ss.guide = None
     ss["mode"] = "💬 Chat"
 
 
@@ -217,6 +219,8 @@ def open_chat(cid):
     ss.studio = {}
     ss.studio_active = None
     ss.confirm_del = None
+    g = data.get("guide")
+    ss.guide = g if isinstance(g, dict) and g.get("question") else None
     ss["mode"] = "💬 Chat"
 
 
@@ -364,12 +368,16 @@ def unpack_chat_value(value):
 
 
 # ==============================================================================
-# 📚 2B. NCERT CLASS 11 LIBRARY (textbooks + previous-year papers)
+# 📚 2B. NCERT CLASS 11 LIBRARY (textbooks + exercise questions + previous-year papers)
 # ==============================================================================
-# Put the free NCERT PDFs (ncert.nic.in) in  library/<subject>/  and past papers /
-# sample papers in  pyq/<subject>/ . You can also upload them from the Library screen.
+# Free NCERT PDFs (ncert.nic.in) go in:
+#   library/<subject>/    textbook chapters (exercises + in-text questions are inside these PDFs)
+#   questions/<subject>/  optional: separate exercise / exemplar / in-text question PDFs
+#   pyq/<subject>/        previous-year / sample papers
+# You can also upload them from the Library screen.
 LIB_DIR = BASE / "library"
 PYQ_DIR = BASE / "pyq"
+QS_DIR = BASE / "questions"
 
 CHAPTERS = {
     "Physics": [
@@ -414,7 +422,7 @@ CHAPTERS = {
     ],
 }
 
-for _folder in (LIB_DIR, PYQ_DIR):
+for _folder in (LIB_DIR, PYQ_DIR, QS_DIR):
     for _s in CHAPTERS:
         try:
             (_folder / _s.lower()).mkdir(parents=True, exist_ok=True)
@@ -452,6 +460,51 @@ def _lib_files(folder, subject=None):
     return out
 
 
+# ---------- NCERT question extraction (exercise + in-text questions) ----------
+_Q_START = re.compile(r"(?<![\w.])(\d{1,2}\.\d{1,2}|\d{1,2}\.)\s+(?=[A-Z(\"'])")
+_NOISE = re.compile(r"(Rationalised|Reprint|Reprinted)\s*\d{4}\s*[-–]\s*\d{2,4}", re.IGNORECASE)
+
+
+@st.cache_data(show_spinner=False)
+def _pdf_questions(path_str, mtime):
+    """Pulls the numbered questions out of the EXERCISES section of an NCERT PDF.
+    Returns [{"num": "3.1", "text": "..."}]. Works best on science/maths chapter PDFs."""
+    try:
+        from pypdf import PdfReader
+        reader = PdfReader(path_str)
+    except Exception:
+        return []
+    pages = []
+    for page in reader.pages:
+        try:
+            pages.append(page.extract_text() or "")
+        except Exception:
+            pages.append("")
+    full = _NOISE.sub(" ", re.sub(r"\s+", " ", "\n".join(pages)))
+    m = re.search(r"\bEXERCISES?\b", full)
+    if not m:
+        return []
+    section = full[m.end():]
+    marks = list(_Q_START.finditer(section))
+    out, seen = [], set()
+    for i, mk in enumerate(marks):
+        end = marks[i + 1].start() if i + 1 < len(marks) else len(section)
+        num = mk.group(1).rstrip(".")
+        text = section[mk.end():end].strip()
+        text = re.sub(r"\s+", " ", text)
+        if len(text) < 25:
+            continue
+        text = text[:600]
+        key = (num, text[:40])
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append({"num": num, "text": text})
+        if len(out) >= 90:
+            break
+    return out
+
+
 STOP = set("""about above after again also because been before being between both could does doing done
 down during each from give have having here into just like make more most much need only other over same
 should some such than that their them then there these they this those through under until very want what
@@ -478,7 +531,7 @@ def retrieve(query, subject=None, folder=None, k=4, max_chars=3500, boost=""):
             score = sum(low.count(w) * wt for w, wt in weights.items())
             if score:
                 scored.append((score, f.name, pno, text))
-    scored.sort(reverse=True)
+    scored.sort(key=lambda x: x[0], reverse=True)
     parts, total = [], 0
     for _, name, pno, text in scored[:k]:
         if total + len(text) > max_chars:
@@ -489,16 +542,20 @@ def retrieve(query, subject=None, folder=None, k=4, max_chars=3500, boost=""):
 
 
 def library_context(query, focus=None):
-    """Extra system-prompt text so answers come from the textbooks / PYQ style.
-    focus = {"subject":..., "chapter":...} when the message came from a Library button."""
+    """Extra system-prompt text so answers come from the textbooks / NCERT questions / PYQ style.
+    focus = {"subject":..., "chapter":...} when the message came from a Library or Guided button."""
     subject = focus.get("subject") if focus else None
     boost = focus.get("chapter") if focus else ""
     book = retrieve(query, subject, LIB_DIR, boost=boost)
+    qs = retrieve(query, subject, QS_DIR, k=3, max_chars=2000, boost=boost)
     pyq = retrieve(query, subject, PYQ_DIR, k=2, max_chars=1500, boost=boost)
     out = ""
     if book:
         out += ("\n\nTEXTBOOK EXCERPTS (NCERT Class 11). Treat these as the source of truth and mention "
                 "which book/page you used:\n" + book)
+    if qs:
+        out += ("\n\nNCERT EXERCISE / IN-TEXT QUESTIONS (reference). Use the NCERT method and wording when "
+                "guiding the student:\n" + qs)
     if pyq:
         out += "\n\nPREVIOUS-YEAR QUESTION STYLE REFERENCE:\n" + pyq
     return out
@@ -510,14 +567,117 @@ def go_chat_with(prompt, subject=None, chapter=None):
     ss["mode"] = "💬 Chat"
 
 
+# ---------- guided step-by-step NCERT question mode ----------
+GUIDE_STYLES = {
+    "🪜 One step at a time (I try each step)": "steps",
+    "💡 Hints first (I try, you nudge)": "hints",
+    "📖 Full worked solution, explained": "full",
+}
+
+
+def start_guided(subject, question, style_label, label=""):
+    question = re.sub(r"\s+", " ", str(question or "")).strip()
+    if not question:
+        st.toast("Pick or paste a question first.", icon="⚠️")
+        return
+    new_chat()
+    ss.guide = {"question": question[:900], "subject": subject,
+                "style": GUIDE_STYLES.get(style_label, "steps"), "label": label or ""}
+    prompt = f"Guide me through this NCERT Class 11 {subject} question:\n\n{question[:900]}"
+    ss.queued_prompt = prompt
+    ss.lib_focus = {"prompt": prompt, "subject": subject,
+                    "chapter": "Guided · " + _trim(label or question, 26)}
+
+
+def end_guide():
+    ss.guide = None
+    if ss.messages:
+        save_chat()
+
+
+def guide_prompt(g):
+    style = g.get("style", "steps")
+    if style == "full":
+        how = ("Give a complete worked solution in clearly numbered steps, explaining the reason for each step, "
+               "then a 2-line recap. Finish by offering a similar practice question.")
+    elif style == "hints":
+        how = ("Do NOT solve it. Give one small hint or leading question per reply and wait for the student's "
+               "attempt. If the student is stuck twice on the same point, show that one step worked out, then "
+               "continue with hints.")
+    else:
+        how = ("Break the question into small numbered steps. Give ONLY the current step per reply (concept, "
+               "formula or method needed), then ask the student to do that step and stop. When they reply, "
+               "check it: if right, say so briefly and move to the next step; if wrong, show exactly where it "
+               "went off and give a hint. If stuck twice, work that step out, then continue. After the last "
+               "step, give a short recap and one similar practice question.")
+    return (
+        "\n\nGUIDED NCERT QUESTION MODE (active):\n"
+        f"Subject: {g.get('subject', '')}\n"
+        f"Question being solved: {g.get('question', '')}\n"
+        f"How to guide: {how}\n"
+        "Rules: stay on THIS question; use NCERT methods, formulas, units and exam-style presentation; mention "
+        "the textbook page when you use an excerpt; keep each reply under about 130 words; speak like a friendly "
+        "senior, no robotic slogans."
+    )
+
+
+def render_guided():
+    st.markdown('<div class="studio-head">// GUIDED · NCERT QUESTIONS STEP BY STEP</div>', unsafe_allow_html=True)
+    if not KEY_OK:
+        st.warning("Add your Groq API key in the sidebar to start guided practice.")
+    subject = st.selectbox("Subject", list(CHAPTERS), key="g_subject")
+    style_label = st.selectbox("How should I guide you?", list(GUIDE_STYLES), key="g_style")
+
+    tab_pdf, tab_paste = st.tabs(["📖 From NCERT PDFs", "✍️ Paste a question"])
+
+    with tab_pdf:
+        files = _lib_files(LIB_DIR, subject) + _lib_files(QS_DIR, subject)
+        if not files:
+            st.info(f"No {subject} PDFs yet. Add NCERT chapter PDFs in the Library tab "
+                    f"(or drop them in library/{subject.lower()}/), or paste a question in the next tab.")
+        else:
+            src = st.selectbox("Chapter file", files, format_func=lambda p: p.name, key=f"g_src_{subject}")
+            with st.spinner("Reading questions..."):
+                qs = _pdf_questions(str(src), src.stat().st_mtime)
+            if not qs:
+                st.caption("Couldn't find an EXERCISES section in this file. Try another chapter, "
+                           "or paste the question in the next tab.")
+            else:
+                term = st.text_input("Search / jump to a question number", key=f"g_find_{subject}",
+                                     placeholder="e.g. 3.5 or momentum").strip().lower()
+                shown = [i for i, q in enumerate(qs) if not term or term in q["num"].lower() or term in q["text"].lower()]
+                if not shown:
+                    st.caption("No match. Clear the search box.")
+                else:
+                    skey = hashlib.md5(f"{src.name}|{term}".encode()).hexdigest()[:8]
+                    pick = st.selectbox(
+                        f"Question ({len(shown)} found)", shown,
+                        format_func=lambda i: f"Q{qs[i]['num']} · {_trim(qs[i]['text'], 70)}",
+                        key=f"g_pick_{skey}")
+                    chosen = qs[pick]
+                    st.markdown(f"**Q{chosen['num']}.** {chosen['text']}")
+                    st.caption("If the text looks cut or jumbled, edit it in the Paste tab before starting.")
+                    st.button("🧭 Guide me step by step", key="g_go_pdf", use_container_width=True,
+                              disabled=not KEY_OK, on_click=start_guided,
+                              args=(subject, chosen["text"], style_label, f"Q{chosen['num']} {src.stem}"))
+
+    with tab_paste:
+        own = st.text_area("Type or paste the question", key="g_own", height=130,
+                           placeholder="Paste any NCERT exercise / in-text question here...")
+        st.button("🧭 Guide me step by step", key="g_go_own", use_container_width=True,
+                  disabled=(not KEY_OK) or (not own.strip()), on_click=start_guided,
+                  args=(subject, own, style_label, ""))
+
+
 def render_library():
     st.markdown('<div class="studio-head">// NCERT CLASS 11 · LIBRARY</div>', unsafe_allow_html=True)
     subject = st.selectbox("Subject", list(CHAPTERS), key="lib_subject")
     chapter = st.selectbox("Chapter", CHAPTERS[subject], key="lib_chapter")
 
     n_books = len(_lib_files(LIB_DIR, subject))
+    n_qs = len(_lib_files(QS_DIR, subject))
     n_pyq = len(_lib_files(PYQ_DIR, subject))
-    st.caption(f"📚 {n_books} textbook PDF(s) · 📝 {n_pyq} PYQ PDF(s) loaded for {subject}")
+    st.caption(f"📚 {n_books} textbook · ❓ {n_qs} question PDF(s) · 📝 {n_pyq} PYQ PDF(s) loaded for {subject}")
     if not n_books:
         st.info(f"Add the NCERT {subject} PDFs below (free at ncert.nic.in) so answers use the real book text.")
 
@@ -537,12 +697,14 @@ def render_library():
         st.button("✅ Test me", key="lib_b4", use_container_width=True, on_click=go_chat_with, args=(
             f"Quiz me one question at a time on {ctx}. Wait for my answer before the next.", subject, chapter))
 
-    with st.expander("➕ Add textbook / PYQ PDFs"):
-        kind = st.radio("Type", ["Textbook", "PYQ / Sample paper"], horizontal=True, key="lib_kind")
+    with st.expander("➕ Add textbook / question / PYQ PDFs"):
+        kind = st.radio("Type", ["Textbook", "Exercise / in-text questions", "PYQ / Sample paper"],
+                        horizontal=True, key="lib_kind")
         ups = st.file_uploader("PDFs", type=["pdf"], accept_multiple_files=True,
                                key=f"lib_up_{ss.get('lib_up_n', 0)}")
         if ups and st.button("Save to library", use_container_width=True, key="lib_save"):
-            dest = (LIB_DIR if kind == "Textbook" else PYQ_DIR) / subject.lower()
+            base_dir = LIB_DIR if kind == "Textbook" else QS_DIR if kind.startswith("Exercise") else PYQ_DIR
+            dest = base_dir / subject.lower()
             dest.mkdir(parents=True, exist_ok=True)
             for u in ups:
                 (dest / Path(u.name).name).write_bytes(u.getvalue())
@@ -657,6 +819,7 @@ with st.sidebar:
         <div>WHISPER CORE: <span style="color:#f1f5f9;">v3 LARGE AUDIO</span></div>
         <div>WEATHER HOOK: <span style="color:#f1f5f9;">LIVE SATELLITE</span></div>
         <div>LIBRARY: <span style="color:#f1f5f9;">NCERT CLASS 11</span></div>
+        <div>GUIDED Q&amp;A: <span style="color:#f1f5f9;">NCERT QUESTIONS</span></div>
         <div>GUARDRAILS: <span style="color:{theme['primary']};font-weight:700;">ANTI-CHEAT ACTIVE</span></div>
     </div>
     """, unsafe_allow_html=True)
@@ -732,6 +895,12 @@ raw_css = """
         background: __TITLE_GRAD__; -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 2px; }
     .hero-subtitle { color: #94a3b8; font-size: 12px; line-height: 1.4; max-width: 440px; margin: 0 auto; }
 
+    .guide-banner {
+        background: __ASSISTANT_BG__; border: 1px solid __PRIMARY__; border-radius: 12px;
+        padding: 8px 12px; margin: 4px 0 10px; font-size: 12px; color: #e2e8f0; line-height: 1.5;
+    }
+    .guide-banner b { color: __ACCENT__; font-family: 'JetBrains Mono', monospace; font-size: 10.5px; letter-spacing: .5px; }
+
     div[data-testid="stButton"] > button, div[data-testid="stDownloadButton"] > button {
         background: rgba(15,23,42,0.85) !important; border: 1px solid __PRIMARY__ !important;
         border-radius: 999px !important; color: #cbd5e1 !important; font-weight: 500 !important;
@@ -802,7 +971,7 @@ raw_css = """
     .stChatMessage p { margin-bottom: .6rem; }
     /* chat bar and page share the same width so they line up */
     [data-testid="stMainBlockContainer"], .block-container, [data-testid="stBottomBlockContainer"] { max-width: 760px !important; }
-    /* keep the status bar clear of Streamlit's fixed top header (this was hiding it) */
+    /* keep the status bar clear of Streamlit's fixed top header */
     [data-testid="stMainBlockContainer"], .block-container { padding-top: 4.5rem !important; }
     [data-testid="stHeader"] { background: rgba(3,7,8,0.65) !important; backdrop-filter: blur(10px); }
     .hud-bar { position: relative; z-index: 1; }
@@ -851,8 +1020,10 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-mode = st.radio("View", ["💬 Chat", "📚 Library", "🗺️ Studio"], horizontal=True,
-                label_visibility="collapsed", key="mode")
+MODES = ["💬 Chat", "🧭 Guided", "📚 Library", "🗺️ Studio"]
+if ss.get("mode") not in MODES:
+    ss["mode"] = "💬 Chat"
+mode = st.radio("View", MODES, horizontal=True, label_visibility="collapsed", key="mode")
 
 # ==============================================================================
 # 📎 6. INPUT HANDLING (voice + files live inside the chat bar)
@@ -862,7 +1033,8 @@ NATIVE_FILE = "accept_file" in chat_params
 NATIVE_AUDIO = "accept_audio" in chat_params
 
 user_text = ""
-if ss.queued_prompt:
+# Only consume a queued prompt while the Chat view is showing, so it is never lost.
+if ss.queued_prompt and mode == "💬 Chat":
     user_text, ss.queued_prompt = ss.queued_prompt, None
 
 if mode == "💬 Chat":
@@ -957,7 +1129,9 @@ SYSTEM_PROMPT = f"""You are {ai_name}, an intelligent, casual student peer and s
 {file_injection}
 
 The student is in CBSE Class 11 (subjects: Physics, Chemistry, Biology, Maths, English) following NCERT textbooks.
-When textbook excerpts are provided, base your answer on them and name the book/page.
+When textbook excerpts or NCERT question excerpts are provided, base your answer on them and name the book/page.
+If the student mentions an NCERT exercise or in-text question (e.g. "Q 3.5" or "exercise 4.2"), use the provided
+question excerpts to find its exact wording, and guide them through it step by step instead of dumping the answer.
 
 STRICT CONVERSATION RULES:
 1. ANSWER DIRECTLY: Explain concepts simply and casually. If live weather telemetry is provided in context, share the weather directly and accurately!
@@ -1114,6 +1288,9 @@ def generate_studio(kind):
         st.error(f"Studio Error: {e}")
 
 
+if mode == "🧭 Guided":
+    render_guided()
+
 if mode == "📚 Library":
     render_library()
 
@@ -1151,6 +1328,16 @@ if mode == "🗺️ Studio":
 if mode == "💬 Chat":
     if ss.messages:
         st.button("➕ New chat", key="new_chat_top", on_click=new_chat)
+
+    guide_now = ss.get("guide")
+    if guide_now:
+        st.markdown(
+            f'<div class="guide-banner"><b>🧭 GUIDED · {html.escape(str(guide_now.get("subject", "")).upper())}</b><br>'
+            f'{html.escape(_trim(guide_now.get("question", ""), 220))}</div>',
+            unsafe_allow_html=True,
+        )
+        st.button("✖ End guided mode", key="end_guide", on_click=end_guide)
+
     if len(ss.messages) == 0 and not ss.pending:
         st.markdown(f"""
         <div class="hero-container">
@@ -1195,12 +1382,22 @@ if mode == "💬 Chat":
                     dynamic_system += (f"\n\n[REAL-TIME DATA INJECTION]: {weather}. "
                                        "Use this live data to answer the user's weather question accurately!")
 
-                # NCERT textbook + PYQ passages from the Library folders
+                # Guided NCERT-question mode: step-by-step tutoring rules
+                guide = ss.get("guide")
+                if guide:
+                    dynamic_system += guide_prompt(guide)
+
+                # NCERT textbook + exercise-question + PYQ passages from the Library folders
                 focus = ss.get("lib_focus")
                 if focus and focus.get("prompt") != last_q:
                     focus = None
+                search_q = last_q
+                if guide:
+                    search_q = f"{guide.get('question', '')} {last_q}"
+                    if not focus:
+                        focus = {"subject": guide.get("subject"), "chapter": guide.get("question", "")}
                 with st.spinner("Checking your textbooks..."):
-                    dynamic_system += library_context(last_q, focus)
+                    dynamic_system += library_context(search_q, focus)
 
                 clean_history = [
                     {"role": m["role"], "content": m["content"]}
@@ -1255,7 +1452,6 @@ with export_slot.container():
             export_text += f"[{sender}]:\n{m.get('content', '')}\n\n"
         st.download_button("📥 Export Session (.txt)", export_text, file_name=f"{clean_name}_study_roadmap.txt",
                            mime="text/plain", use_container_width=True)
-    if ss.messages:
         st.button("🗑️ Delete this chat", key="del_current", use_container_width=True, on_click=delete_current_chat)
 
 
@@ -1291,4 +1487,3 @@ def render_history():
 
 with history_slot.container():
     render_history()
-
