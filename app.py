@@ -7,6 +7,7 @@ import re
 import time
 import urllib.parse
 import urllib.request
+from datetime import date, datetime
 from pathlib import Path
 
 import streamlit as st
@@ -24,7 +25,7 @@ st.set_page_config(
     page_title="CLOVER STUDIO // NEURAL FOUNDRY",
     page_icon="🍀",
     layout="centered",
-    initial_sidebar_state="collapsed",
+    initial_sidebar_state="auto",
 )
 
 ss = st.session_state
@@ -35,6 +36,10 @@ ss.setdefault("queued_prompt", None)
 ss.setdefault("studio", {})          # generated Studio outputs
 ss.setdefault("studio_active", None)
 ss.setdefault("last_audio_hash", None)
+ss.setdefault("messages", [])        # messages of the chat that is open right now
+ss.setdefault("chat_id", None)       # None = brand-new chat (saved on the first message)
+ss.setdefault("chat_title", "")
+ss.setdefault("confirm_del", None)   # chat id waiting for delete confirmation
 
 TEXT_TYPES = ["txt", "md", "py", "json", "csv", "pdf"]
 MAX_DOC_CHARS = 6000
@@ -94,22 +99,165 @@ except Exception:
     pass
 
 
-def load_history(slug):
-    path = HISTORY_DIR / f"{slug}.json"
-    if path.exists():
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-            return data if isinstance(data, list) else []
-        except Exception:
-            return []
-    return []
+# ---------- multi-chat storage: one JSON file per chat in students/chats/ ----------
+CHATS_DIR = HISTORY_DIR / "chats"
+try:
+    CHATS_DIR.mkdir(parents=True, exist_ok=True)
+except Exception:
+    pass
+_ID_OK = re.compile(r"^[0-9A-Za-z_-]+$")
 
 
-def save_history(slug, history):
+def _trim(text, n):
+    text = re.sub(r"\s+", " ", str(text)).strip()
+    return text if len(text) <= n else text[: n - 1].rstrip() + "…"
+
+
+def _chat_path(cid):
+    return CHATS_DIR / f"{cid}.json" if _ID_OK.match(str(cid or "")) else None
+
+
+def _new_id():
+    return time.strftime("%Y%m%d-%H%M%S") + "-" + hashlib.md5(os.urandom(8)).hexdigest()[:4]
+
+
+def _make_title(first_text):
+    focus = ss.get("lib_focus")
+    if focus and focus.get("prompt") == first_text and focus.get("chapter"):
+        return f"{focus.get('subject')} · {focus.get('chapter')}"
+    return _trim(first_text, 48) or "New chat"
+
+
+def save_chat():
+    """Saves the open chat. Empty chats are never kept (no clutter in the history list)."""
+    if not ss.messages:
+        path = _chat_path(ss.chat_id)
+        if path:
+            try:
+                path.unlink(missing_ok=True)
+            except Exception:
+                pass
+        ss.chat_id, ss.chat_title = None, ""
+        return
+    if not ss.chat_id:
+        ss.chat_id = _new_id()
+        first_user = next((m.get("content", "") for m in ss.messages if m.get("role") == "user"), "")
+        ss.chat_title = _make_title(first_user)
+    path = _chat_path(ss.chat_id)
+    if not path:
+        return
+    data = {"id": ss.chat_id, "title": ss.chat_title or "Chat", "avatar": ai_avatar,
+            "updated": time.time(), "messages": ss.messages}
     try:
-        (HISTORY_DIR / f"{slug}.json").write_text(json.dumps(history, indent=2), encoding="utf-8")
+        path.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
     except Exception:
         pass
+
+
+def list_chats(limit=60):
+    try:
+        files = sorted(CHATS_DIR.glob("*.json"), key=lambda f: f.stat().st_mtime, reverse=True)[:limit]
+    except Exception:
+        return []
+    out = []
+    for f in files:
+        try:
+            d = json.loads(f.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if isinstance(d, dict) and isinstance(d.get("messages"), list) and d["messages"]:
+            out.append({"id": f.stem, "title": d.get("title") or "Chat", "avatar": d.get("avatar") or "",
+                        "updated": d.get("updated") or f.stat().st_mtime})
+    return out
+
+
+def migrate_old_histories():
+    """One-time: turns the old per-persona history files into entries in the new chat list."""
+    try:
+        for f in list(HISTORY_DIR.glob("*.json")):
+            try:
+                data = json.loads(f.read_text(encoding="utf-8"))
+            except Exception:
+                data = None
+            if isinstance(data, list) and any(m.get("role") == "user" for m in data if isinstance(m, dict)):
+                first = next(m.get("content", "") for m in data if m.get("role") == "user")
+                cid = _new_id()
+                (CHATS_DIR / f"{cid}.json").write_text(json.dumps(
+                    {"id": cid, "title": _trim(first, 48) or "Old chat", "avatar": "",
+                     "updated": f.stat().st_mtime, "messages": data}, ensure_ascii=False, indent=1), encoding="utf-8")
+            f.rename(f.with_suffix(".json.bak"))
+    except Exception:
+        pass
+
+
+def new_chat():
+    ss.chat_id = None
+    ss.chat_title = ""
+    ss.messages = []
+    ss.pending = False
+    ss.studio = {}
+    ss.studio_active = None
+    ss.confirm_del = None
+    ss["mode"] = "💬 Chat"
+
+
+def open_chat(cid):
+    path = _chat_path(cid)
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        msgs = data["messages"]
+        assert isinstance(msgs, list)
+    except Exception:
+        st.toast("Couldn't open that chat.", icon="⚠️")
+        return
+    ss.chat_id = cid
+    ss.chat_title = data.get("title") or "Chat"
+    ss.messages = msgs
+    ss.pending = False
+    ss.studio = {}
+    ss.studio_active = None
+    ss.confirm_del = None
+    ss["mode"] = "💬 Chat"
+
+
+def ask_delete(cid):
+    ss.confirm_del = cid
+
+
+def cancel_delete():
+    ss.confirm_del = None
+
+
+def delete_chat(cid):
+    path = _chat_path(cid)
+    if path:
+        try:
+            path.unlink(missing_ok=True)
+        except Exception:
+            pass
+    ss.confirm_del = None
+    if cid == ss.chat_id:
+        new_chat()
+
+
+def delete_current_chat():
+    if ss.chat_id:
+        delete_chat(ss.chat_id)
+    else:
+        new_chat()
+
+
+def group_label(ts):
+    try:
+        days = (date.today() - datetime.fromtimestamp(ts).date()).days
+    except Exception:
+        return "Older"
+    return "Today" if days <= 0 else "Yesterday" if days == 1 else "Previous 7 days" if days <= 7 else "Older"
+
+
+if not ss.get("migrated"):
+    migrate_old_histories()
+    ss.migrated = True
 
 
 @st.cache_resource
@@ -181,14 +329,6 @@ def remove_doc(name):
     if key:
         ss.dismissed.add(key)
     ss.docs.pop(name, None)
-
-
-def reset_chat(slug):
-    save_history(slug, [])
-    ss.messages = []
-    ss.pending = False
-    ss.studio = {}
-    ss.studio_active = None
 
 
 def queue_prompt(p):
@@ -415,6 +555,8 @@ def render_library():
 # ⚙️ 3. SIDEBAR (persona, exam, key)
 # ==============================================================================
 with st.sidebar:
+    history_slot = st.empty()   # chat history list, filled at the end so it is never stale
+    st.divider()
     st.markdown("""
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
         <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:#94a3b8;letter-spacing:1px;">// CONTROL MATRIX</span>
@@ -505,14 +647,6 @@ with st.sidebar:
     else:
         safe_exam_target = "General"
         exam_days = None
-
-    # Load this persona's chat history (reloads automatically when persona changes)
-    if "messages" not in ss or ss.get("current_profile") != clean_name:
-        ss.current_profile = clean_name
-        ss.messages = load_history(clean_name)
-        ss.pending = False
-        ss.studio = {}
-        ss.studio_active = None
 
     st.divider()
     docs_slot = st.empty()      # filled after input is processed (so it is never stale)
@@ -788,7 +922,7 @@ if mode == "💬 Chat":
             st.warning(f"👈 Please paste your Groq API Key in the sidebar to unlock {safe_ai_name}.")
         else:
             ss.messages.append({"role": "user", "content": user_text.strip()})
-            save_history(clean_name, ss.messages)
+            save_chat()
             ss.pending = True
 
 # Sidebar attachment list (rendered AFTER input handling so it is always current)
@@ -1015,6 +1149,8 @@ if mode == "🗺️ Studio":
 # 🚀 9. CHAT VIEW
 # ==============================================================================
 if mode == "💬 Chat":
+    if ss.messages:
+        st.button("➕ New chat", key="new_chat_top", on_click=new_chat)
     if len(ss.messages) == 0 and not ss.pending:
         st.markdown(f"""
         <div class="hero-container">
@@ -1096,13 +1232,13 @@ if mode == "💬 Chat":
                 st.markdown(f'<div class="telemetry-chip">{telemetry_str}</div>', unsafe_allow_html=True)
 
                 ss.messages.append({"role": "assistant", "content": response_text, "telemetry": telemetry_str})
-                save_history(clean_name, ss.messages)
+                save_chat()
                 ss.pending = False
             except Exception as e:
                 ss.pending = False
                 if ss.messages and ss.messages[-1].get("role") == "user":
                     ss.messages.pop()
-                    save_history(clean_name, ss.messages)
+                    save_chat()
                 st.error(f"Inference Engine Error: {e}")
 
     if ss.messages:
@@ -1119,4 +1255,40 @@ with export_slot.container():
             export_text += f"[{sender}]:\n{m.get('content', '')}\n\n"
         st.download_button("📥 Export Session (.txt)", export_text, file_name=f"{clean_name}_study_roadmap.txt",
                            mime="text/plain", use_container_width=True)
-    st.button("🗑️ Reset Chat History", use_container_width=True, on_click=reset_chat, args=(clean_name,))
+    if ss.messages:
+        st.button("🗑️ Delete this chat", key="del_current", use_container_width=True, on_click=delete_current_chat)
+
+
+def render_history():
+    st.button("➕ New chat", key="new_chat_side", use_container_width=True, on_click=new_chat)
+    chats = list_chats()
+    if not chats:
+        st.caption("No saved chats yet. Your conversations will show up here.")
+        return
+    try:
+        box = st.container(height=340) if len(chats) > 7 else st.container()
+    except TypeError:
+        box = st.container()
+    with box:
+        last_group = None
+        for c in chats:
+            grp = group_label(c["updated"])
+            if grp != last_group:
+                st.caption(grp.upper())
+                last_group = grp
+            cid = c["id"]
+            if ss.get("confirm_del") == cid:
+                st.caption(f"Delete “{_trim(c['title'], 28)}”?")
+                y, n = st.columns(2)
+                y.button("Delete", key=f"yes_{cid}", on_click=delete_chat, args=(cid,))
+                n.button("Cancel", key=f"no_{cid}", on_click=cancel_delete)
+            else:
+                a, b = st.columns([5, 1])
+                label = ("● " if cid == ss.chat_id else "") + _trim(c["title"], 26)
+                a.button(label, key=f"open_{cid}", on_click=open_chat, args=(cid,), help=c["title"])
+                b.button("🗑", key=f"del_{cid}", on_click=ask_delete, args=(cid,), help="Delete chat")
+
+
+with history_slot.container():
+    render_history()
+
